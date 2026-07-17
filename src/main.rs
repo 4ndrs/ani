@@ -1,3 +1,14 @@
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version)]
+struct Args {
+    #[arg(short, long, default_value = "ANON TOKYO")]
+    name: String,
+}
+
 fn main() {
-    println!("Hello, world!");
+    let args = Args::parse();
+
+    println!("Hello, {}!", args.name);
 }
