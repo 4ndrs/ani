@@ -1,14 +1,28 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(version)]
-struct Args {
-    #[arg(short, long, default_value = "ANON TOKYO")]
-    name: String,
+/// Some anime cli
+struct Cli {
+    #[command(subcommand)]
+    commands: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Show information about an anime
+    Info {
+        /// The AniList anime id
+        id: u32,
+    },
 }
 
 fn main() {
-    let args = Args::parse();
+    let args = Cli::parse();
 
-    println!("Hello, {}!", args.name);
+    match args.commands {
+        Commands::Info { id } => {
+            println!("Show info for id {}", id)
+        }
+    }
 }
