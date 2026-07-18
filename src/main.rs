@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use serde::Deserialize;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -15,14 +16,33 @@ enum Commands {
         /// The AniList anime id
         id: u32,
     },
+    /// Runs some stuff for testing
+    Test,
 }
 
-fn main() {
+#[derive(Deserialize)]
+struct Ip {
+    #[serde(rename = "origin")]
+    ip_address: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     match args.commands {
         Commands::Info { id } => {
             println!("Show info for id {}", id)
         }
-    }
+        Commands::Test => {
+            let response = reqwest::get("https://httpbin.org/ip")
+                .await?
+                .json::<Ip>()
+                .await?;
+
+            println!("Your ip is {}", response.ip_address)
+        }
+    };
+
+    Ok(())
 }
