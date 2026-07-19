@@ -20,12 +20,6 @@ enum Commands {
     Test,
 }
 
-#[derive(Deserialize)]
-struct Ip {
-    #[serde(rename = "origin")]
-    ip_address: String,
-}
-
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
     let args = Cli::parse();
@@ -87,6 +81,12 @@ async fn main() -> Result<(), reqwest::Error> {
             println!("{response:#?}");
         }
         Commands::Test => {
+            #[derive(Deserialize)]
+            struct Ip {
+                #[serde(rename = "origin")]
+                ip_address: String,
+            }
+
             let response: Ip = reqwest::get("https://httpbin.org/ip").await?.json().await?;
 
             println!("Your ip is {}", response.ip_address)
