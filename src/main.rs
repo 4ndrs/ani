@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -14,7 +14,7 @@ enum Commands {
     /// Show information about an anime
     Info {
         /// The AniList anime id
-        id: u32,
+        id: i32,
     },
     /// Runs some stuff for testing
     Test,
@@ -27,18 +27,67 @@ struct Ip {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), reqwest::Error> {
     let args = Cli::parse();
 
     match args.commands {
         Commands::Info { id } => {
-            println!("Show info for id {}", id)
+            println!("Show info for id {}", id);
+
+            #[derive(Serialize)]
+            struct AnimeInfoVariables {
+                id: i32,
+            }
+
+            #[derive(Serialize)]
+            struct GraphQlRequest<'a> {
+                query: &'a str,
+                variables: AnimeInfoVariables,
+            }
+
+            const QUERY: &str = r#"
+                query ($id: Int) {
+                    Media (type: ANIME, id: $id) {
+                        id
+                        title {
+                            romaji
+                            native
+                        }
+                        season
+                        seasonYear
+                        episodes
+                        averageScore
+                        startDate {
+                            year
+                            month
+                            day
+                        }
+                        endDate {
+                            year
+                            month
+                            day
+                        }
+                    }
+                }
+                "#;
+
+            let request = GraphQlRequest {
+                query: QUERY,
+                variables: AnimeInfoVariables { id },
+            };
+
+            let response: serde_json::Value = reqwest::Client::new()
+                .post("https://graphql.anilist.co/")
+                .json(&request)
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            println!("{response:#?}");
         }
         Commands::Test => {
-            let response = reqwest::get("https://httpbin.org/ip")
-                .await?
-                .json::<Ip>()
-                .await?;
+            let response: Ip = reqwest::get("https://httpbin.org/ip").await?.json().await?;
 
             println!("Your ip is {}", response.ip_address)
         }
