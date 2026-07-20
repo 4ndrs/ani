@@ -1,7 +1,7 @@
 use std::io::Error;
 
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
+use graphql_client::{GraphQLQuery, Response};
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -10,17 +10,22 @@ struct Cli {
     #[command(subcommand)]
     commands: Commands,
 }
-
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Show information about an anime
     Info {
         /// The AniList anime id
-        id: i32,
+        id: i64,
     },
-    /// Runs some stuff for testing
-    Test,
 }
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "graphql/schema.json",
+    query_path = "graphql/queries/anime_info.graphql",
+    response_derives = "Debug"
+)]
+struct AnimeInfo;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,114 +33,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.commands {
         Commands::Info { id } => {
-            #[derive(Serialize)]
-            struct AnimeInfoVariables {
-                id: i32,
-            }
+            println!("Show info for id {id}");
 
-            #[derive(Serialize)]
-            struct GraphQlRequest<'a> {
-                query: &'a str,
-                variables: AnimeInfoVariables,
-            }
+            let variables = anime_info::Variables { id };
+            let request_body = AnimeInfo::build_query(variables);
 
-            const QUERY: &str = r#"
-                query ($id: Int) {
-                    Media (type: ANIME, id: $id) {
-                        id
-                        title {
-                            romaji
-                            native
-                        }
-                        description
-                        season
-                        seasonYear
-                        episodes
-                        averageScore
-                        startDate {
-                            year
-                            month
-                            day
-                        }
-                        endDate {
-                            year
-                            month
-                            day
-                        }
-                    }
-                }
-                "#;
-
-            #[derive(Deserialize, Debug)]
-            struct FuzzyDate {
-                day: Option<i32>,
-                month: Option<i32>,
-                year: Option<i32>,
-            }
-
-            #[derive(Deserialize, Debug)]
-            #[serde(rename_all = "UPPERCASE")]
-            enum Season {
-                Spring,
-                Summer,
-                Fall,
-                Winter,
-            }
-
-            #[derive(Deserialize, Debug)]
-            struct Title {
-                romaji: Option<String>,
-                native: Option<String>,
-            }
-
-            #[derive(Deserialize, Debug)]
-            struct Media {
-                id: i32,
-                title: Option<Title>,
-                description: Option<String>,
-
-                #[serde(rename = "averageScore")]
-                average_score: Option<i32>,
-
-                #[serde(rename = "startDate")]
-                start_date: Option<FuzzyDate>,
-
-                #[serde(rename = "endDate")]
-                end_date: Option<FuzzyDate>,
-
-                season: Option<Season>,
-
-                #[serde(rename = "seasonYear")]
-                season_year: Option<i32>,
-            }
-
-            #[derive(Deserialize, Debug)]
-            struct GraphQLData {
-                #[serde(rename = "Media")]
-                media: Option<Media>,
-            }
-
-            #[derive(Deserialize, Debug)]
-            struct GraphQLError {
-                message: String,
-            }
-
-            #[derive(Deserialize, Debug)]
-            struct GraphQLResponse {
-                data: Option<GraphQLData>,
-                errors: Option<Vec<GraphQLError>>,
-            }
-
-            println!("Show info for id {}", id);
-
-            let request = GraphQlRequest {
-                query: QUERY,
-                variables: AnimeInfoVariables { id },
-            };
-
-            let response: GraphQLResponse = reqwest::Client::new()
+            let response: Response<anime_info::ResponseData> = reqwest::Client::new()
                 .post("https://graphql.anilist.co/")
-                .json(&request)
+                .json(&request_body)
                 .send()
                 .await?
                 .json()
@@ -165,17 +70,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Id: {id}");
             println!("Title: {title}");
             println!("Description: {description}");
-        }
-        Commands::Test => {
-            #[derive(Deserialize)]
-            struct Ip {
-                #[serde(rename = "origin")]
-                ip_address: String,
-            }
-
-            let response: Ip = reqwest::get("https://httpbin.org/ip").await?.json().await?;
-
-            println!("Your ip is {}", response.ip_address)
         }
     };
 

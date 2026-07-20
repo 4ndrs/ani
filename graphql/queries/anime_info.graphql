@@ -1,0 +1,24 @@
+query AnimeInfo($id: Int!) {
+  Media(type: ANIME, id: $id) {
+    id
+    title {
+      romaji
+      native
+    }
+    description
+    season
+    seasonYear
+    episodes
+    averageScore
+    startDate {
+      year
+      month
+      day
+    }
+    endDate {
+      year
+      month
+      day
+    }
+  }
+}

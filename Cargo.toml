@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.6.2", features = ["derive"] }
+graphql_client = "0.16.0"
 reqwest = { version = "0.13", features = ["json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.150"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
