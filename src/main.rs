@@ -35,35 +35,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Info { id } => {
             println!("Show info for id {id}");
 
-            let variables = anime_info::Variables { id };
-            let request_body = AnimeInfo::build_query(variables);
+            let client = reqwest::Client::new();
 
-            let response: Response<anime_info::ResponseData> = reqwest::Client::new()
-                .post("https://graphql.anilist.co/")
-                .json(&request_body)
-                .send()
-                .await?
-                .json()
-                .await?;
+            let anime = fetch_anime(&client, id).await?;
 
-            println!("{response:#?}\n");
+            let id = anime.id;
 
-            let data = response
-                .data
-                .ok_or_else(|| Error::other("response contained no data"))?;
-
-            let media = data
-                .media
-                .ok_or_else(|| Error::other("response contained no media"))?;
-
-            let id = media.id;
-
-            let title = media
+            let title = anime
                 .title
                 .and_then(|title| title.native)
                 .unwrap_or_else(|| "No title".to_owned());
 
-            let description = media
+            let description = anime
                 .description
                 .unwrap_or_else(|| "No description".to_owned());
 
@@ -74,4 +57,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Ok(())
+}
+
+async fn fetch_anime(
+    client: &reqwest::Client,
+    id: i64,
+) -> Result<anime_info::AnimeInfoMedia, Box<dyn std::error::Error>> {
+    let variables = anime_info::Variables { id };
+    let request_body = AnimeInfo::build_query(variables);
+
+    let response: Response<anime_info::ResponseData> = client
+        .post("https://graphql.anilist.co/")
+        .json(&request_body)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let data = response
+        .data
+        .ok_or_else(|| Error::other("response contained no data"))?;
+
+    let media = data
+        .media
+        .ok_or_else(|| Error::other("response contained no media"))?;
+
+    Ok(media)
 }
