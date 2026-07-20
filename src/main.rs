@@ -39,20 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let anime = fetch_anime(&client, id).await?;
 
-            let id = anime.id;
-
-            let title = anime
-                .title
-                .and_then(|title| title.native)
-                .unwrap_or_else(|| "No title".to_owned());
-
-            let description = anime
-                .description
-                .unwrap_or_else(|| "No description".to_owned());
-
-            println!("Id: {id}");
-            println!("Title: {title}");
-            println!("Description: {description}");
+            print_anime(anime);
         }
     };
 
@@ -84,4 +71,21 @@ async fn fetch_anime(
         .ok_or_else(|| Error::other("response contained no media"))?;
 
     Ok(media)
+}
+
+fn print_anime(media: anime_info::AnimeInfoMedia) {
+    let id = media.id;
+
+    let title = media
+        .title
+        .and_then(|title| title.native)
+        .unwrap_or_else(|| "No title".to_owned());
+
+    let description = media
+        .description
+        .unwrap_or_else(|| "No description".to_owned());
+
+    println!("Id: {id}");
+    println!("Title: {title}");
+    println!("Description: {description}");
 }
