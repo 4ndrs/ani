@@ -1,24 +1,17 @@
 query AnimeInfo($id: Int!) {
   Media(type: ANIME, id: $id) {
-    id
     title {
       romaji
       native
     }
+    format
     description
     season
     seasonYear
     episodes
     averageScore
-    startDate {
-      year
-      month
-      day
-    }
-    endDate {
-      year
-      month
-      day
-    }
+    status
+    siteUrl
+    genres
   }
 }

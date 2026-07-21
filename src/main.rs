@@ -1,4 +1,7 @@
-use std::io::Error;
+use std::{
+    fmt::{self, Display},
+    io::Error,
+};
 
 use clap::{Parser, Subcommand};
 use graphql_client::{GraphQLQuery, Response};
@@ -33,20 +36,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.commands {
         Commands::Info { id } => {
-            println!("Show info for id {id}");
-
             let client = reqwest::Client::new();
 
-            let anime = fetch_anime(&client, id).await?;
+            let anime = fetch_anime_info(&client, id).await?;
 
-            print_anime(anime);
+            print_anime_info(anime);
         }
     };
 
     Ok(())
 }
 
-async fn fetch_anime(
+async fn fetch_anime_info(
     client: &reqwest::Client,
     id: i64,
 ) -> Result<anime_info::AnimeInfoMedia, Box<dyn std::error::Error>> {
@@ -73,19 +74,109 @@ async fn fetch_anime(
     Ok(media)
 }
 
-fn print_anime(media: anime_info::AnimeInfoMedia) {
-    let id = media.id;
+impl Display for anime_info::MediaFormat {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
 
-    let title = media
-        .title
-        .and_then(|title| title.native)
-        .unwrap_or_else(|| "No title".to_owned());
+impl Display for anime_info::MediaSeason {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
 
-    let description = media
-        .description
-        .unwrap_or_else(|| "No description".to_owned());
+fn print_anime_info(media: anime_info::AnimeInfoMedia) {
+    // Made in Abyss
+    // メイドインアビス
+    //
+    // TV · 13 episodes · 2017
+    // Summer 2017
+    // Score: 86/100
+    // Genres: Adventure · Drama · Fantasy · Mystery · Sci-Fi
+    //
+    // An enormous cave system known as the Abyss is the last unexplored
+    // place in the world...
+    //
+    // AniList: https://anilist.co/anime/97986
 
-    println!("Id: {id}");
-    println!("Title: {title}");
-    println!("Description: {description}");
+    if let Some(title_romaji) = media.title.as_ref().and_then(|title| title.romaji.as_ref())
+        && let Some(title_native) = media.title.as_ref().and_then(|title| title.native.as_ref())
+    {
+        println!("{title_romaji}");
+        println!("{title_native}");
+    } else if let Some(title_romaji) = media.title.as_ref().and_then(|title| title.romaji.as_ref())
+    {
+        println!("{title_romaji}")
+    } else if let Some(title_native) = media.title.and_then(|title| title.native) {
+        println!("{title_native}")
+    } else {
+        println!("No Title")
+    }
+
+    println!();
+
+    let mut third_line: Vec<String> = vec![];
+
+    if let Some(format) = media.format {
+        third_line.push(format.to_string().replace("_", " "));
+    };
+
+    if let Some(episodes) = media.episodes {
+        let mut text = "episodes";
+
+        if episodes == 1 {
+            text = "episode"
+        }
+
+        third_line.push(episodes.to_string() + " " + text);
+    }
+
+    if let Some(season_year) = media.season_year.as_ref() {
+        third_line.push(season_year.to_string());
+    }
+
+    print_tags(third_line);
+
+    if let Some(season) = media.season
+        && let Some(season_year) = media.season_year
+    {
+        println!("{season} {season_year}");
+    }
+
+    if let Some(score) = media.average_score {
+        println!("Score: {score}/100");
+    }
+
+    if let Some(genres) = media.genres {
+        print!("Genres: ");
+
+        let genres = genres.into_iter().flatten().collect();
+
+        print_tags(genres);
+    }
+
+    println!();
+
+    if let Some(description) = media.description {
+        println!("{description}\n");
+    }
+
+    if let Some(site_url) = media.site_url {
+        println!("AniList: {site_url}")
+    }
+}
+
+fn print_tags(tags: Vec<String>) {
+    let len = tags.len();
+
+    for (index, tag) in tags.iter().enumerate() {
+        print!("{tag}");
+
+        if index != len - 1 {
+            print!(" · ");
+        }
+    }
+
+    println!();
 }
