@@ -147,8 +147,8 @@ fn print_anime_info(media: &anime_info::AnimeInfoMedia) {
     let mut details = Vec::new();
 
     if let Some(format) = &media.format {
-        details.push(format.to_string().replace("_", " "));
-    };
+        details.push(format.to_string());
+    }
 
     if let Some(episodes) = media.episodes {
         let label = if episodes == 1 { "episode" } else { "episodes" };
@@ -162,7 +162,7 @@ fn print_anime_info(media: &anime_info::AnimeInfoMedia) {
 
     if !details.is_empty() {
         println!("{}", details.join(" · "))
-    };
+    }
 
     if let (Some(season), Some(year)) = (&media.season, media.season_year) {
         println!("{season} {year}");
@@ -173,12 +173,10 @@ fn print_anime_info(media: &anime_info::AnimeInfoMedia) {
     }
 
     if let Some(genres) = &media.genres {
-        print!("Genres: ");
-
         let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
 
         if !genres.is_empty() {
-            println!("{}", genres.join(" · "))
+            println!("Genres: {}", genres.join(" · "))
         };
     }
 
