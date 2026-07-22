@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let anime = fetch_anime_info(&client, id).await?;
 
-            print_anime_info(anime);
+            print_anime_info(&anime);
         }
     };
 
@@ -76,17 +76,39 @@ async fn fetch_anime_info(
 
 impl Display for anime_info::MediaFormat {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{self:?}")
+        let format = match self {
+            anime_info::MediaFormat::TV => "TV",
+            anime_info::MediaFormat::OVA => "OVA",
+            anime_info::MediaFormat::ONA => "ONA",
+            anime_info::MediaFormat::MANGA => "Manga",
+            anime_info::MediaFormat::MOVIE => "Movie",
+            anime_info::MediaFormat::NOVEL => "Novel",
+            anime_info::MediaFormat::MUSIC => "Music",
+            anime_info::MediaFormat::SPECIAL => "Special",
+            anime_info::MediaFormat::ONE_SHOT => "One Shot",
+            anime_info::MediaFormat::TV_SHORT => "TV Short",
+            _ => "Unknown",
+        };
+
+        formatter.write_str(format)
     }
 }
 
 impl Display for anime_info::MediaSeason {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{self:?}")
+        let season = match self {
+            anime_info::MediaSeason::FALL => "Fall",
+            anime_info::MediaSeason::WINTER => "Winter",
+            anime_info::MediaSeason::SPRING => "Spring",
+            anime_info::MediaSeason::SUMMER => "Summer",
+            _ => "Unknown",
+        };
+
+        formatter.write_str(season)
     }
 }
 
-fn print_anime_info(media: anime_info::AnimeInfoMedia) {
+fn print_anime_info(media: &anime_info::AnimeInfoMedia) {
     // Made in Abyss
     // メイドインアビス
     //
@@ -100,83 +122,73 @@ fn print_anime_info(media: anime_info::AnimeInfoMedia) {
     //
     // AniList: https://anilist.co/anime/97986
 
-    if let Some(title_romaji) = media.title.as_ref().and_then(|title| title.romaji.as_ref())
-        && let Some(title_native) = media.title.as_ref().and_then(|title| title.native.as_ref())
-    {
-        println!("{title_romaji}");
-        println!("{title_native}");
-    } else if let Some(title_romaji) = media.title.as_ref().and_then(|title| title.romaji.as_ref())
-    {
-        println!("{title_romaji}")
-    } else if let Some(title_native) = media.title.and_then(|title| title.native) {
-        println!("{title_native}")
-    } else {
-        println!("No Title")
+    let romaji = media
+        .title
+        .as_ref()
+        .and_then(|title| title.romaji.as_deref());
+
+    let native = media
+        .title
+        .as_ref()
+        .and_then(|title| title.native.as_deref());
+
+    match (romaji, native) {
+        (Some(romaji), Some(native)) => {
+            println!("{romaji}");
+            println!("{native}");
+        }
+        (Some(romaji), None) => println!("{romaji}"),
+        (None, Some(native)) => println!("{native}"),
+        (None, None) => println!("No Title"),
     }
 
     println!();
 
-    let mut third_line: Vec<String> = vec![];
+    let mut details = Vec::new();
 
-    if let Some(format) = media.format {
-        third_line.push(format.to_string().replace("_", " "));
+    if let Some(format) = &media.format {
+        details.push(format.to_string().replace("_", " "));
     };
 
     if let Some(episodes) = media.episodes {
-        let mut text = "episodes";
+        let label = if episodes == 1 { "episode" } else { "episodes" };
 
-        if episodes == 1 {
-            text = "episode"
-        }
-
-        third_line.push(episodes.to_string() + " " + text);
+        details.push(format!("{episodes} {label}"));
     }
 
-    if let Some(season_year) = media.season_year.as_ref() {
-        third_line.push(season_year.to_string());
+    if let Some(season_year) = media.season_year {
+        details.push(season_year.to_string());
     }
 
-    print_tags(third_line);
+    if !details.is_empty() {
+        println!("{}", details.join(" · "))
+    };
 
-    if let Some(season) = media.season
-        && let Some(season_year) = media.season_year
-    {
-        println!("{season} {season_year}");
+    if let (Some(season), Some(year)) = (&media.season, media.season_year) {
+        println!("{season} {year}");
     }
 
     if let Some(score) = media.average_score {
         println!("Score: {score}/100");
     }
 
-    if let Some(genres) = media.genres {
+    if let Some(genres) = &media.genres {
         print!("Genres: ");
 
-        let genres = genres.into_iter().flatten().collect();
+        let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
 
-        print_tags(genres);
+        if !genres.is_empty() {
+            println!("{}", genres.join(" · "))
+        };
     }
 
     println!();
 
-    if let Some(description) = media.description {
+    if let Some(description) = &media.description {
         println!("{description}\n");
     }
 
-    if let Some(site_url) = media.site_url {
+    if let Some(site_url) = &media.site_url {
         println!("AniList: {site_url}")
     }
-}
-
-fn print_tags(tags: Vec<String>) {
-    let len = tags.len();
-
-    for (index, tag) in tags.iter().enumerate() {
-        print!("{tag}");
-
-        if index != len - 1 {
-            print!(" · ");
-        }
-    }
-
-    println!();
 }
