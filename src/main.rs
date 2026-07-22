@@ -63,6 +63,16 @@ async fn fetch_anime_info(
         .json()
         .await?;
 
+    if let Some(errors) = response.errors {
+        let messages = errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        return Err(Error::other(format!("GraphQL error: {messages}")).into());
+    }
+
     let data = response
         .data
         .ok_or_else(|| Error::other("response contained no data"))?;
