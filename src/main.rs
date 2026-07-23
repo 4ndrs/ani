@@ -5,6 +5,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use graphql_client::{GraphQLQuery, Response};
+use image::{DynamicImage, Pixel, Rgba, RgbaImage};
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -20,6 +21,8 @@ enum Commands {
         /// The AniList anime id
         id: i64,
     },
+    /// Test running stuff
+    Test,
 }
 
 #[derive(GraphQLQuery)]
@@ -41,6 +44,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let anime = fetch_anime_info(&client, id).await?;
 
             print_anime_info(&anime);
+        }
+        Commands::Test => {
+            println!("testing");
+
+            let config = viuer::Config {
+                absolute_offset: false,
+                ..Default::default()
+            };
+
+            let mut img = DynamicImage::ImageRgba8(RgbaImage::new(60, 60));
+
+            let start = Rgba::from_slice(&[0, 196, 0, 255]);
+            let end = Rgba::from_slice(&[255, 255, 255, 255]);
+
+            image::imageops::horizontal_gradient(&mut img, start, end);
+
+            viuer::print(&img, &config)?;
         }
     };
 

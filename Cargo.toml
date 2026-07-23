@@ -6,5 +6,7 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.6.2", features = ["derive"] }
 graphql_client = "0.16.0"
+image = "0.25.10"
 reqwest = { version = "0.13", features = ["json"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+viuer = "0.11.0"
