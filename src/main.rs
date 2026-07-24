@@ -1,11 +1,11 @@
 use std::{
     fmt::{self, Display},
-    io::Error,
+    io::{Cursor, Error},
 };
 
 use clap::{Parser, Subcommand};
 use graphql_client::{GraphQLQuery, Response};
-use image::{DynamicImage, Pixel, Rgba, RgbaImage};
+use image::ImageReader;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -48,17 +48,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Test => {
             println!("testing");
 
+            let url = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx192800-r8zlO0VY0jJP.jpg";
+
+            let bytes = reqwest::get(url).await?.bytes().await?;
+
+            let img = ImageReader::new(Cursor::new(bytes))
+                .with_guessed_format()?
+                .decode()?;
+
             let config = viuer::Config {
+                height: Some(20),
                 absolute_offset: false,
                 ..Default::default()
             };
-
-            let mut img = DynamicImage::ImageRgba8(RgbaImage::new(60, 60));
-
-            let start = Rgba::from_slice(&[0, 196, 0, 255]);
-            let end = Rgba::from_slice(&[255, 255, 255, 255]);
-
-            image::imageops::horizontal_gradient(&mut img, start, end);
 
             viuer::print(&img, &config)?;
         }
