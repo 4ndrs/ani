@@ -1,11 +1,10 @@
 use std::{
     fmt::{self, Display},
-    io::{Cursor, Error},
+    io::Error,
 };
 
 use clap::{Parser, Subcommand};
 use graphql_client::{GraphQLQuery, Response};
-use image::ImageReader;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -52,9 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let bytes = reqwest::get(url).await?.bytes().await?;
 
-            let img = ImageReader::new(Cursor::new(bytes))
-                .with_guessed_format()?
-                .decode()?;
+            let img = image::load_from_memory(&bytes)?;
 
             let config = viuer::Config {
                 height: Some(20),
