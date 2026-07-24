@@ -5,6 +5,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use graphql_client::{GraphQLQuery, Response};
+use image::{DynamicImage, RgbImage};
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -42,7 +43,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let anime = fetch_anime_info(&client, id).await?;
 
-            print_anime_info(&anime);
+            let image_url = if let Some(cover_image) = &anime.cover_image {
+                cover_image.extra_large.as_deref()
+            } else {
+                None
+            };
+
+            let cover_image = fetch_image(&client, image_url).await?;
+
+            print_anime_info(&anime, &cover_image);
         }
         Commands::Test => {
             println!("testing");
@@ -64,6 +73,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Ok(())
+}
+
+async fn fetch_image(
+    client: &reqwest::Client,
+    url: Option<&str>,
+) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+    if let Some(url) = url {
+        let bytes = client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+
+        let image = image::load_from_memory(&bytes)?;
+
+        Ok(image)
+    } else {
+        // TODO need to create a "no image" placeholder
+        // need to check what "no image" on anilist website returns
+        let image = DynamicImage::ImageRgb8(RgbImage::new(20, 20));
+
+        Ok(image)
+    }
 }
 
 async fn fetch_anime_info(
@@ -137,7 +171,7 @@ impl Display for anime_info::MediaSeason {
     }
 }
 
-fn print_anime_info(media: &anime_info::AnimeInfoMedia) {
+fn print_anime_info(media: &anime_info::AnimeInfoMedia, cover: &DynamicImage) {
     // Made in Abyss
     // メイドインアビス
     //
@@ -150,6 +184,14 @@ fn print_anime_info(media: &anime_info::AnimeInfoMedia) {
     // place in the world...
     //
     // AniList: https://anilist.co/anime/97986
+
+    let config = viuer::Config {
+        height: Some(20),
+        absolute_offset: false,
+        ..Default::default()
+    };
+
+    let _ = viuer::print(&cover, &config);
 
     let romaji = media
         .title
