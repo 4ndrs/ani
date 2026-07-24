@@ -43,15 +43,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let anime = fetch_anime_info(&client, id).await?;
 
-            let image_url = if let Some(cover_image) = &anime.cover_image {
-                cover_image.extra_large.as_deref()
-            } else {
-                None
-            };
+            let image_url = anime
+                .cover_image
+                .as_ref()
+                .and_then(|image| image.extra_large.as_deref());
 
             let cover_image = fetch_image(&client, image_url).await?;
 
-            print_anime_info(&anime, &cover_image);
+            print_anime_info(&anime, &cover_image)?;
         }
         Commands::Test => {
             println!("testing");
@@ -171,7 +170,10 @@ impl Display for anime_info::MediaSeason {
     }
 }
 
-fn print_anime_info(media: &anime_info::AnimeInfoMedia, cover: &DynamicImage) {
+fn print_anime_info(
+    media: &anime_info::AnimeInfoMedia,
+    cover: &DynamicImage,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Made in Abyss
     // メイドインアビス
     //
@@ -191,7 +193,7 @@ fn print_anime_info(media: &anime_info::AnimeInfoMedia, cover: &DynamicImage) {
         ..Default::default()
     };
 
-    let _ = viuer::print(&cover, &config);
+    viuer::print(cover, &config)?;
 
     let romaji = media
         .title
@@ -258,6 +260,8 @@ fn print_anime_info(media: &anime_info::AnimeInfoMedia, cover: &DynamicImage) {
     }
 
     if let Some(site_url) = &media.site_url {
-        println!("AniList: {site_url}")
+        println!("AniList: {site_url}");
     }
+
+    Ok(())
 }
