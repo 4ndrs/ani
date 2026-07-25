@@ -238,30 +238,31 @@ fn print_anime_info(
         let (_, current_row) = cursor::position()?;
         let (_, terminal_rows) = terminal::size()?;
 
-        let difference = terminal_rows - current_row;
-        let not_enough = difference < cover_rows;
+        let available_rows = terminal_rows - current_row;
+        let needs_scrolling = available_rows < cover_rows;
 
-        if not_enough {
+        if needs_scrolling {
             // reserve space for the image (scrolling breaks text positioning)
-            let scrolling_needed = cover_rows - difference;
+            let rows_to_scroll = cover_rows - available_rows;
 
             execute!(
                 stdout,
-                terminal::ScrollUp(scrolling_needed),
-                cursor::MoveUp(scrolling_needed)
+                terminal::ScrollUp(rows_to_scroll),
+                cursor::MoveUp(rows_to_scroll)
             )?;
         }
 
         let config = viuer::Config {
-            width: Some(27),
+            width: Some(COVER_WIDTH),
             restore_cursor: true,
             absolute_offset: false,
+            x: 1,
             ..Default::default()
         };
 
         viuer::print(cover, &config)?;
 
-        shift_right = cover_columns + 2;
+        shift_right = cover_columns + 3;
     }
 
     let romaji = media
@@ -274,12 +275,12 @@ fn print_anime_info(
         .as_ref()
         .and_then(|title| title.native.as_deref());
 
-    execute!(stdout, cursor::MoveRight(shift_right))?;
+    execute!(stdout, cursor::MoveToColumn(shift_right))?;
 
     match (romaji, native) {
         (Some(romaji), Some(native)) => {
             writeln!(stdout, "{romaji}")?;
-            execute!(stdout, cursor::MoveRight(shift_right))?;
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
             writeln!(stdout, "{native}")?;
         }
         (Some(romaji), None) => writeln!(stdout, "{romaji}")?,
@@ -306,22 +307,22 @@ fn print_anime_info(
     }
 
     if !details.is_empty() {
-        execute!(stdout, cursor::MoveRight(shift_right))?;
+        execute!(stdout, cursor::MoveToColumn(shift_right))?;
         writeln!(stdout, "{}", details.join(" · "))?
     }
 
     if let (Some(season), Some(year)) = (&media.season, media.season_year) {
-        execute!(stdout, cursor::MoveRight(shift_right))?;
+        execute!(stdout, cursor::MoveToColumn(shift_right))?;
         writeln!(stdout, "{season} {year}")?;
     }
 
     if let Some(score) = media.average_score {
-        execute!(stdout, cursor::MoveRight(shift_right))?;
+        execute!(stdout, cursor::MoveToColumn(shift_right))?;
         writeln!(stdout, "Score: {score}/100")?;
     }
 
     if let Some(status) = &media.status {
-        execute!(stdout, cursor::MoveRight(shift_right))?;
+        execute!(stdout, cursor::MoveToColumn(shift_right))?;
         writeln!(stdout, "Status: {status}")?
     }
 
@@ -329,7 +330,7 @@ fn print_anime_info(
         let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
 
         if !genres.is_empty() {
-            execute!(stdout, cursor::MoveRight(shift_right))?;
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
             writeln!(stdout, "Genres: {}", genres.join(" · "))?
         };
     }
@@ -339,12 +340,14 @@ fn print_anime_info(
     if let Some(description) = &media.description {
         let (terminal_columns, _) = terminal::size()?;
 
-        let space_available = terminal_columns - shift_right;
+        let space_available = terminal_columns
+            .saturating_sub(shift_right)
+            .saturating_sub(1);
 
         let lines = textwrap::wrap(description, usize::from(space_available));
 
         for line in lines {
-            execute!(stdout, cursor::MoveRight(shift_right))?;
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
             writeln!(stdout, "{line}")?;
         }
 
@@ -352,7 +355,7 @@ fn print_anime_info(
     }
 
     if let Some(site_url) = &media.site_url {
-        execute!(stdout, cursor::MoveRight(shift_right))?;
+        execute!(stdout, cursor::MoveToColumn(shift_right))?;
         writeln!(stdout, "AniList: {site_url}")?;
     }
 
