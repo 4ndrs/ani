@@ -5,7 +5,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use graphql_client::{GraphQLQuery, Response};
-use image::{DynamicImage, RgbImage};
+use image::DynamicImage;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let cover_image = fetch_image(&client, image_url).await?;
 
-            print_anime_info(&anime, &cover_image)?;
+            print_anime_info(&anime, cover_image.as_ref())?;
         }
         Commands::Test => {
             println!("testing");
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn fetch_image(
     client: &reqwest::Client,
     url: Option<&str>,
-) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+) -> Result<Option<DynamicImage>, Box<dyn std::error::Error>> {
     if let Some(url) = url {
         let bytes = client
             .get(url)
@@ -89,13 +89,9 @@ async fn fetch_image(
 
         let image = image::load_from_memory(&bytes)?;
 
-        Ok(image)
+        Ok(Some(image))
     } else {
-        // TODO need to create a "no image" placeholder
-        // need to check what "no image" on anilist website returns
-        let image = DynamicImage::ImageRgb8(RgbImage::new(20, 20));
-
-        Ok(image)
+        Ok(None)
     }
 }
 
@@ -172,7 +168,7 @@ impl Display for anime_info::MediaSeason {
 
 fn print_anime_info(
     media: &anime_info::AnimeInfoMedia,
-    cover: &DynamicImage,
+    cover: Option<&DynamicImage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Made in Abyss
     // メイドインアビス
@@ -193,7 +189,9 @@ fn print_anime_info(
         ..Default::default()
     };
 
-    viuer::print(cover, &config)?;
+    if let Some(cover) = cover {
+        viuer::print(cover, &config)?;
+    }
 
     let romaji = media
         .title
