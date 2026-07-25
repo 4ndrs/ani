@@ -287,7 +287,6 @@ fn print_anime_info(
         (None, None) => writeln!(stdout, "No Title")?,
     }
 
-    execute!(stdout, cursor::MoveRight(shift_right))?;
     writeln!(stdout)?;
 
     let mut details = Vec::new();
@@ -335,12 +334,21 @@ fn print_anime_info(
         };
     }
 
-    execute!(stdout, cursor::MoveRight(shift_right))?;
     writeln!(stdout)?;
 
     if let Some(description) = &media.description {
-        execute!(stdout, cursor::MoveRight(shift_right))?;
-        writeln!(stdout, "{description}\n")?;
+        let (terminal_columns, _) = terminal::size()?;
+
+        let space_available = terminal_columns - shift_right;
+
+        let lines = textwrap::wrap(description, usize::from(space_available));
+
+        for line in lines {
+            execute!(stdout, cursor::MoveRight(shift_right))?;
+            writeln!(stdout, "{line}")?;
+        }
+
+        writeln!(stdout)?;
     }
 
     if let Some(site_url) = &media.site_url {
