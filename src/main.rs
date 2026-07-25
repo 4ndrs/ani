@@ -1,9 +1,10 @@
 use std::{
     fmt::{self, Display},
-    io::Error,
+    io::{Error, Write, stdout},
 };
 
 use clap::{Parser, Subcommand};
+use crossterm::{cursor, execute, style, terminal};
 use graphql_client::{GraphQLQuery, Response};
 use image::DynamicImage;
 
@@ -21,6 +22,8 @@ enum Commands {
         /// The AniList anime id
         id: i64,
     },
+    // Test stuff
+    Test,
 }
 
 #[derive(GraphQLQuery)]
@@ -49,6 +52,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cover_image = fetch_image(&client, image_url).await?;
 
             print_anime_info(&anime, cover_image.as_ref())?;
+        }
+        Commands::Test => {
+            let mut stdout = stdout();
+
+            let space_needed = 30;
+            let mut scrolling_needed = 0;
+
+            let (_, current_row) = cursor::position()?;
+            let (_, terminal_rows) = terminal::size()?;
+
+            let difference = terminal_rows - current_row;
+            let not_enough = difference < space_needed;
+
+            if not_enough {
+                scrolling_needed = space_needed - difference;
+
+                execute!(
+                    stdout,
+                    terminal::ScrollUp(scrolling_needed),
+                    cursor::MoveUp(scrolling_needed)
+                )?;
+            }
+
+            dbg!(
+                terminal_rows,
+                current_row,
+                space_needed,
+                difference,
+                not_enough,
+                scrolling_needed,
+            );
+
+            execute!(stdout, style::Print("hello\n"),)?;
+
+            execute!(
+                stdout,
+                cursor::MoveRight(30),
+                style::Print("Hello, world!\n")
+            )?;
         }
     };
 
@@ -160,6 +202,8 @@ impl Display for anime_info::MediaStatus {
     }
 }
 
+const COVER_WIDTH: u32 = 27;
+
 fn print_anime_info(
     media: &anime_info::AnimeInfoMedia,
     cover: Option<&DynamicImage>,
@@ -180,14 +224,44 @@ fn print_anime_info(
     // │                      │
     // └──────────────────────┘
 
-    let config = viuer::Config {
-        height: Some(20),
-        absolute_offset: false,
-        ..Default::default()
-    };
+    let mut stdout = stdout();
+    let mut shift_right = 0;
 
     if let Some(cover) = cover {
+        let cover_resized = viuer::resize(cover, Some(COVER_WIDTH), None);
+
+        let (cover_columns, cover_rows) = (
+            u16::try_from(cover_resized.width())?,
+            u16::try_from(cover_resized.height())?,
+        );
+
+        let (_, current_row) = cursor::position()?;
+        let (_, terminal_rows) = terminal::size()?;
+
+        let difference = terminal_rows - current_row;
+        let not_enough = difference < cover_rows;
+
+        if not_enough {
+            // reserve space for the image (scrolling breaks text positioning)
+            let scrolling_needed = cover_rows - difference;
+
+            execute!(
+                stdout,
+                terminal::ScrollUp(scrolling_needed),
+                cursor::MoveUp(scrolling_needed)
+            )?;
+        }
+
+        let config = viuer::Config {
+            width: Some(27),
+            restore_cursor: true,
+            absolute_offset: false,
+            ..Default::default()
+        };
+
         viuer::print(cover, &config)?;
+
+        shift_right = cover_columns + 2;
     }
 
     let romaji = media
@@ -200,17 +274,21 @@ fn print_anime_info(
         .as_ref()
         .and_then(|title| title.native.as_deref());
 
+    execute!(stdout, cursor::MoveRight(shift_right))?;
+
     match (romaji, native) {
         (Some(romaji), Some(native)) => {
-            println!("{romaji}");
-            println!("{native}");
+            writeln!(stdout, "{romaji}")?;
+            execute!(stdout, cursor::MoveRight(shift_right))?;
+            writeln!(stdout, "{native}")?;
         }
-        (Some(romaji), None) => println!("{romaji}"),
-        (None, Some(native)) => println!("{native}"),
-        (None, None) => println!("No Title"),
+        (Some(romaji), None) => writeln!(stdout, "{romaji}")?,
+        (None, Some(native)) => writeln!(stdout, "{native}")?,
+        (None, None) => writeln!(stdout, "No Title")?,
     }
 
-    println!();
+    execute!(stdout, cursor::MoveRight(shift_right))?;
+    writeln!(stdout)?;
 
     let mut details = Vec::new();
 
@@ -229,37 +307,45 @@ fn print_anime_info(
     }
 
     if !details.is_empty() {
-        println!("{}", details.join(" · "))
+        execute!(stdout, cursor::MoveRight(shift_right))?;
+        writeln!(stdout, "{}", details.join(" · "))?
     }
 
     if let (Some(season), Some(year)) = (&media.season, media.season_year) {
-        println!("{season} {year}");
+        execute!(stdout, cursor::MoveRight(shift_right))?;
+        writeln!(stdout, "{season} {year}")?;
     }
 
     if let Some(score) = media.average_score {
-        println!("Score: {score}/100");
+        execute!(stdout, cursor::MoveRight(shift_right))?;
+        writeln!(stdout, "Score: {score}/100")?;
     }
 
     if let Some(status) = &media.status {
-        println!("Status: {status}")
+        execute!(stdout, cursor::MoveRight(shift_right))?;
+        writeln!(stdout, "Status: {status}")?
     }
 
     if let Some(genres) = &media.genres {
         let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
 
         if !genres.is_empty() {
-            println!("Genres: {}", genres.join(" · "))
+            execute!(stdout, cursor::MoveRight(shift_right))?;
+            writeln!(stdout, "Genres: {}", genres.join(" · "))?
         };
     }
 
-    println!();
+    execute!(stdout, cursor::MoveRight(shift_right))?;
+    writeln!(stdout)?;
 
     if let Some(description) = &media.description {
-        println!("{description}\n");
+        execute!(stdout, cursor::MoveRight(shift_right))?;
+        writeln!(stdout, "{description}\n")?;
     }
 
     if let Some(site_url) = &media.site_url {
-        println!("AniList: {site_url}");
+        execute!(stdout, cursor::MoveRight(shift_right))?;
+        writeln!(stdout, "AniList: {site_url}")?;
     }
 
     Ok(())
