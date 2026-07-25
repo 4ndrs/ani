@@ -226,19 +226,22 @@ fn print_anime_info(
 
     let mut stdout = stdout();
     let mut shift_right = 0;
+    let mut row_below_image = 0;
 
     if let Some(cover) = cover {
         let cover_resized = viuer::resize(cover, Some(COVER_WIDTH), None);
 
         let (cover_columns, cover_rows) = (
             u16::try_from(cover_resized.width())?,
-            u16::try_from(cover_resized.height())?,
+            // this is actually x2 the terminal height (each cell contains 2 pixels)
+            u16::try_from(cover_resized.height().div_ceil(2))?,
         );
 
         let (_, current_row) = cursor::position()?;
         let (_, terminal_rows) = terminal::size()?;
 
-        let available_rows = terminal_rows - current_row;
+        let available_rows = terminal_rows.saturating_sub(current_row).saturating_sub(1);
+
         let needs_scrolling = available_rows < cover_rows;
 
         if needs_scrolling {
@@ -252,16 +255,19 @@ fn print_anime_info(
             )?;
         }
 
+        let (_, current_row) = cursor::position()?;
+
         let config = viuer::Config {
+            x: 1,
             width: Some(COVER_WIDTH),
             restore_cursor: true,
             absolute_offset: false,
-            x: 1,
             ..Default::default()
         };
 
         viuer::print(cover, &config)?;
 
+        row_below_image = current_row.saturating_add(cover_rows);
         shift_right = cover_columns + 3;
     }
 
@@ -362,6 +368,12 @@ fn print_anime_info(
     if let Some(site_url) = &media.site_url {
         execute!(stdout, cursor::MoveToColumn(shift_right))?;
         writeln!(stdout, "AniList: {site_url}")?;
+    }
+
+    let (_, current_row) = cursor::position()?;
+
+    if current_row < row_below_image {
+        execute!(stdout, cursor::MoveTo(0, row_below_image))?
     }
 
     Ok(())
