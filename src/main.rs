@@ -21,8 +21,6 @@ enum Commands {
         /// The AniList anime id
         id: i64,
     },
-    /// Test running stuff
-    Test,
 }
 
 #[derive(GraphQLQuery)]
@@ -51,23 +49,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cover_image = fetch_image(&client, image_url).await?;
 
             print_anime_info(&anime, cover_image.as_ref())?;
-        }
-        Commands::Test => {
-            println!("testing");
-
-            let url = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx192800-r8zlO0VY0jJP.jpg";
-
-            let bytes = reqwest::get(url).await?.bytes().await?;
-
-            let img = image::load_from_memory(&bytes)?;
-
-            let config = viuer::Config {
-                height: Some(20),
-                absolute_offset: false,
-                ..Default::default()
-            };
-
-            viuer::print(&img, &config)?;
         }
     };
 
