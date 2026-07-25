@@ -78,21 +78,19 @@ async fn fetch_image(
     client: &reqwest::Client,
     url: Option<&str>,
 ) -> Result<Option<DynamicImage>, Box<dyn std::error::Error>> {
-    if let Some(url) = url {
-        let bytes = client
-            .get(url)
-            .send()
-            .await?
-            .error_for_status()?
-            .bytes()
-            .await?;
+    let Some(url) = url else { return Ok(None) };
 
-        let image = image::load_from_memory(&bytes)?;
+    let bytes = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes()
+        .await?;
 
-        Ok(Some(image))
-    } else {
-        Ok(None)
-    }
+    let image = image::load_from_memory(&bytes)?;
+
+    Ok(Some(image))
 }
 
 async fn fetch_anime_info(
