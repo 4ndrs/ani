@@ -145,22 +145,40 @@ impl Display for anime_info::MediaSeason {
     }
 }
 
+impl Display for anime_info::MediaStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let status = match self {
+            anime_info::MediaStatus::HIATUS => "Hiatus",
+            anime_info::MediaStatus::FINISHED => "Finished",
+            anime_info::MediaStatus::RELEASING => "Releasing",
+            anime_info::MediaStatus::CANCELLED => "Cancelled",
+            anime_info::MediaStatus::NOT_YET_RELEASED => "Not Yet Released",
+            _ => "Unknown",
+        };
+
+        formatter.write_str(status)
+    }
+}
+
 fn print_anime_info(
     media: &anime_info::AnimeInfoMedia,
     cover: Option<&DynamicImage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Made in Abyss
-    // メイドインアビス
-    //
-    // TV · 13 episodes · 2017
-    // Summer 2017
-    // Score: 86/100
-    // Genres: Adventure · Drama · Fantasy · Mystery · Sci-Fi
-    //
-    // An enormous cave system known as the Abyss is the last unexplored
-    // place in the world...
-    //
-    // AniList: https://anilist.co/anime/97986
+    // ┌──────────────────────┐  Made in Abyss
+    // │                      │  メイドインアビス
+    // │                      │
+    // │                      │  TV · 13 episodes · 2017
+    // │                      │  Summer 2017
+    // │                      │  Score: 86/100
+    // │                      │  Status: Finished
+    // │     COVER IMAGE      │  Genres: Adventure · Drama · Fantasy · Mystery · Sci-Fi
+    // │                      │
+    // │                      │  An enormous cave system known as the Abyss is the last unexplored
+    // │                      │  place in the world...
+    // │                      │
+    // │                      │  AniList: https://anilist.co/anime/97986
+    // │                      │
+    // └──────────────────────┘
 
     let config = viuer::Config {
         height: Some(20),
@@ -220,6 +238,10 @@ fn print_anime_info(
 
     if let Some(score) = media.average_score {
         println!("Score: {score}/100");
+    }
+
+    if let Some(status) = &media.status {
+        println!("Status: {status}")
     }
 
     if let Some(genres) = &media.genres {
