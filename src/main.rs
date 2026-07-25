@@ -344,7 +344,12 @@ fn print_anime_info(
             .saturating_sub(shift_right)
             .saturating_sub(1);
 
-        let lines = textwrap::wrap(description, usize::from(space_available));
+        let description: String = scraper::Html::parse_fragment(description)
+            .root_element()
+            .text()
+            .collect();
+
+        let lines = textwrap::wrap(&description, usize::from(space_available));
 
         for line in lines {
             execute!(stdout, cursor::MoveToColumn(shift_right))?;
