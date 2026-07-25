@@ -285,9 +285,13 @@ fn print_anime_info(
 
     match (romaji, native) {
         (Some(romaji), Some(native)) => {
-            writeln!(stdout, "{romaji}")?;
-            execute!(stdout, cursor::MoveToColumn(shift_right))?;
-            writeln!(stdout, "{native}")?;
+            if native == romaji {
+                writeln!(stdout, "{native}")?;
+            } else {
+                writeln!(stdout, "{romaji}")?;
+                execute!(stdout, cursor::MoveToColumn(shift_right))?;
+                writeln!(stdout, "{native}")?;
+            }
         }
         (Some(romaji), None) => writeln!(stdout, "{romaji}")?,
         (None, Some(native)) => writeln!(stdout, "{native}")?,
