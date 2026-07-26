@@ -228,6 +228,8 @@ fn print_anime_info(
     let mut shift_right = 0;
     let mut row_below_image = 0;
 
+    let (terminal_columns, terminal_rows) = terminal::size()?;
+
     if let Some(cover) = cover {
         let cover_resized = viuer::resize(cover, Some(COVER_WIDTH), None);
 
@@ -238,7 +240,6 @@ fn print_anime_info(
         );
 
         let (_, current_row) = cursor::position()?;
-        let (_, terminal_rows) = terminal::size()?;
 
         let available_rows = terminal_rows.saturating_sub(current_row).saturating_sub(1);
 
@@ -336,30 +337,36 @@ fn print_anime_info(
         writeln!(stdout, "Status: {status}")?
     }
 
+    let space_available = usize::from(
+        terminal_columns
+            .saturating_sub(shift_right)
+            .saturating_sub(1),
+    );
+
     if let Some(genres) = &media.genres {
         let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
 
         if !genres.is_empty() {
-            execute!(stdout, cursor::MoveToColumn(shift_right))?;
-            writeln!(stdout, "Genres: {}", genres.join(" · "))?
+            let genres = format!("Genres: {}", genres.join(" · "));
+
+            let lines = textwrap::wrap(&genres, space_available);
+
+            for line in lines {
+                execute!(stdout, cursor::MoveToColumn(shift_right))?;
+                writeln!(stdout, "{line}")?;
+            }
         };
     }
 
     writeln!(stdout)?;
 
     if let Some(description) = &media.description {
-        let (terminal_columns, _) = terminal::size()?;
-
-        let space_available = terminal_columns
-            .saturating_sub(shift_right)
-            .saturating_sub(1);
-
         let description: String = scraper::Html::parse_fragment(description)
             .root_element()
             .text()
             .collect();
 
-        let lines = textwrap::wrap(&description, usize::from(space_available));
+        let lines = textwrap::wrap(&description, space_available);
 
         for line in lines {
             execute!(stdout, cursor::MoveToColumn(shift_right))?;
