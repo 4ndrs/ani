@@ -113,8 +113,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::CompletionSearch { query } => {
             dbg!(&query);
 
-            std::thread::sleep(std::time::Duration::from_secs(5));
-
             let client = reqwest::Client::new();
             let results = fetch_anime_completion_search(&client, query).await?;
 
