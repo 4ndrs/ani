@@ -3,8 +3,9 @@ use std::{
     io::{Error, Write, stdout},
 };
 
-use clap::{Parser, Subcommand};
-use crossterm::{cursor, execute, style, terminal};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, shells};
+use crossterm::{cursor, execute, terminal};
 use graphql_client::{GraphQLQuery, Response};
 use image::DynamicImage;
 
@@ -22,8 +23,13 @@ enum Commands {
         /// The AniList anime id
         id: i64,
     },
-    // Test stuff
-    Test,
+    // FIXME: this hide true doesn't work for completions
+    // https://github.com/clap-rs/clap/discussions/5214#discussioncomment-7577615
+    #[command(hide = true)]
+    /// Internal command for completions
+    CompletionSearch { query: String },
+    /// Generate zsh completions and print them to the screen
+    GenerateZshCompletions,
 }
 
 #[derive(GraphQLQuery)]
@@ -33,6 +39,57 @@ enum Commands {
     response_derives = "Debug"
 )]
 struct AnimeInfo;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "graphql/schema.json",
+    query_path = "graphql/queries/anime_completion_search.graphql",
+    response_derives = "Debug"
+)]
+struct AnimeCompletionSearch;
+
+const ANILIST_GRAPHQL_URL: &str = "https://graphql.anilist.co/";
+
+const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
+    # a previous completion call already produced and displayed a list
+    # reuse it and begin selecting the items
+    if [[ "${compstate[old_list]}" == "shown" ]]; then
+        compstate[old_list]=keep
+        compstate[insert]=menu
+        return
+    fi
+
+    local -a ids
+    local -a displays
+
+    local line id title
+
+    local query="${words[CURRENT]}"
+
+    if (( ${#query} < 2 )); then
+        _message 'Type at least 2 characters to search AniList'
+        return
+    fi
+
+    zle -M "Searching AniList for '$query'..."
+
+    lines=("${(@f)$(ani completion-search "$query" 2>/dev/null)}")
+
+    for line in "${lines[@]}"; do
+        id="${line%%$'\t'*}"
+        title="${line#*$'\t'}"
+
+        ids+=("$id")
+        displays+=("${(r:8:)id} $title")
+    done
+
+    compadd -U -Q -d displays -a ids
+
+    # first tab shows the list but doesn't modify the command line
+    compstate[list]='list force'
+    compstate[insert]=''
+}
+"#;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,46 +110,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             print_anime_info(&anime, cover_image.as_ref())?;
         }
-        Commands::Test => {
-            let mut stdout = stdout();
+        Commands::CompletionSearch { query } => {
+            dbg!(&query);
 
-            let space_needed = 30;
-            let mut scrolling_needed = 0;
+            std::thread::sleep(std::time::Duration::from_secs(5));
 
-            let (_, current_row) = cursor::position()?;
-            let (_, terminal_rows) = terminal::size()?;
+            let client = reqwest::Client::new();
+            let results = fetch_anime_completion_search(&client, query).await?;
 
-            let difference = terminal_rows - current_row;
-            let not_enough = difference < space_needed;
+            let results: Vec<_> = results
+                .into_iter()
+                .map(|anime| {
+                    let id = anime.id;
 
-            if not_enough {
-                scrolling_needed = space_needed - difference;
+                    let title = anime
+                        .title
+                        .and_then(|title| title.romaji)
+                        .unwrap_or_else(|| "No Title".to_string());
 
-                execute!(
-                    stdout,
-                    terminal::ScrollUp(scrolling_needed),
-                    cursor::MoveUp(scrolling_needed)
-                )?;
+                    format!("{id}\t{title}")
+                })
+                .collect();
+
+            for anime in results {
+                println!("{anime}");
             }
-
-            dbg!(
-                terminal_rows,
-                current_row,
-                space_needed,
-                difference,
-                not_enough,
-                scrolling_needed,
-            );
-
-            execute!(stdout, style::Print("hello\n"),)?;
-
-            execute!(
-                stdout,
-                cursor::MoveRight(30),
-                style::Print("Hello, world!\n")
-            )?;
         }
-    };
+        Commands::GenerateZshCompletions => {
+            let mut cmd = Cli::command();
+            let mut buffer: Vec<u8> = Vec::new();
+
+            let name = cmd.get_name().to_string();
+
+            generate(shells::Zsh, &mut cmd, name, &mut buffer);
+
+            let zsh_completion = String::from_utf8(buffer)?;
+            let zsh_completion = zsh_completion.replace("anime id:_default", "anime id:_ani_info");
+            let zsh_completion = format!("{}\n{}", zsh_completion, ANIME_INFO_ZSH_COMPLETION);
+
+            println!("{zsh_completion}")
+        }
+    }
 
     Ok(())
 }
@@ -116,6 +174,48 @@ async fn fetch_image(
     Ok(Some(image))
 }
 
+async fn fetch_anime_completion_search(
+    client: &reqwest::Client,
+    query: String,
+) -> Result<
+    Vec<anime_completion_search::AnimeCompletionSearchPageResults>,
+    Box<dyn std::error::Error>,
+> {
+    let variables = anime_completion_search::Variables { query };
+    let request_body = AnimeCompletionSearch::build_query(variables);
+
+    let response: Response<anime_completion_search::ResponseData> = client
+        .post(ANILIST_GRAPHQL_URL)
+        .json(&request_body)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    if let Some(errors) = response.errors {
+        let messages = errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        return Err(Error::other(format!("GraphQL error: {messages}")).into());
+    }
+
+    let results = response
+        .data
+        .ok_or_else(|| Error::other("response contained no data"))?
+        .page
+        .ok_or_else(|| Error::other("response contained no page"))?
+        .results
+        .ok_or_else(|| Error::other("response contained no results"))?;
+
+    let results: Vec<_> = results.into_iter().flatten().collect();
+
+    Ok(results)
+}
+
 async fn fetch_anime_info(
     client: &reqwest::Client,
     id: i64,
@@ -124,7 +224,7 @@ async fn fetch_anime_info(
     let request_body = AnimeInfo::build_query(variables);
 
     let response: Response<anime_info::ResponseData> = client
-        .post("https://graphql.anilist.co/")
+        .post(ANILIST_GRAPHQL_URL)
         .json(&request_body)
         .send()
         .await?

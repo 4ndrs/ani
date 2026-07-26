@@ -1,0 +1,10 @@
+query AnimeCompletionSearch($query: String!) {
+  Page(perPage: 10) {
+    results: media(type: ANIME, search: $query) {
+      id
+      title {
+        romaji
+      }
+    }
+  }
+}
