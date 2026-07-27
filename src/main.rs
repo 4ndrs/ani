@@ -59,8 +59,7 @@ const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
         return
     fi
 
-    local -a ids
-    local -a displays
+    local -a ids displays lines
 
     local line id title output
 
