@@ -62,7 +62,7 @@ const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
     local -a ids
     local -a displays
 
-    local line id title
+    local line id title output
 
     local query="${words[CURRENT]}"
 
@@ -73,7 +73,14 @@ const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
 
     zle -M "Searching AniList for '$query'..."
 
-    lines=("${(@f)$(ani completion-search "$query" 2>/dev/null)}")
+    output="$(ani completion-search "$query" 2>/dev/null)"
+
+    if [[ -z "$output" ]]; then
+        _message "No anime found for '$query'"
+        return
+    fi
+
+    lines=("${(f)output}")
 
     for line in "${lines[@]}"; do
         id="${line%%$'\t'*}"
@@ -114,24 +121,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             dbg!(&query);
 
             let client = reqwest::Client::new();
-            let results = fetch_anime_completion_search(&client, query).await?;
+            let completions = fetch_anime_completion_search(&client, query).await?;
 
-            let results: Vec<_> = results
-                .into_iter()
-                .map(|anime| {
-                    let id = anime.id;
-
-                    let title = anime
-                        .title
-                        .and_then(|title| title.romaji)
-                        .unwrap_or_else(|| "No Title".to_string());
-
-                    format!("{id}\t{title}")
-                })
-                .collect();
-
-            for anime in results {
-                println!("{anime}");
+            for completion in completions {
+                println!("{completion}")
             }
         }
         Commands::GenerateZshCompletions => {
@@ -142,8 +135,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             generate(shells::Zsh, &mut cmd, name, &mut buffer);
 
-            let zsh_completion = String::from_utf8(buffer)?;
-            let zsh_completion = zsh_completion.replace("anime id:_default", "anime id:_ani_info");
+            let zsh_completion =
+                String::from_utf8(buffer)?.replace("anime id:_default", "anime id:_ani_info");
+
             let zsh_completion = format!("{}\n{}", zsh_completion, ANIME_INFO_ZSH_COMPLETION);
 
             println!("{zsh_completion}")
@@ -172,13 +166,21 @@ async fn fetch_image(
     Ok(Some(image))
 }
 
+struct AnimeCompletion {
+    id: i64,
+    title: String,
+}
+
+impl Display for AnimeCompletion {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{}\t{}", self.id, self.title)
+    }
+}
+
 async fn fetch_anime_completion_search(
     client: &reqwest::Client,
     query: String,
-) -> Result<
-    Vec<anime_completion_search::AnimeCompletionSearchPageResults>,
-    Box<dyn std::error::Error>,
-> {
+) -> Result<Vec<AnimeCompletion>, Box<dyn std::error::Error>> {
     let variables = anime_completion_search::Variables { query };
     let request_body = AnimeCompletionSearch::build_query(variables);
 
@@ -211,6 +213,19 @@ async fn fetch_anime_completion_search(
 
     let results: Vec<_> = results.into_iter().flatten().collect();
 
+    let results = results
+        .into_iter()
+        .map(|anime| {
+            let id = anime.id;
+            let title = anime
+                .title
+                .and_then(|title| title.romaji)
+                .unwrap_or_else(|| "No Title".into());
+
+            AnimeCompletion { id, title }
+        })
+        .collect();
+
     Ok(results)
 }
 
@@ -240,11 +255,9 @@ async fn fetch_anime_info(
         return Err(Error::other(format!("GraphQL error: {messages}")).into());
     }
 
-    let data = response
+    let media = response
         .data
-        .ok_or_else(|| Error::other("response contained no data"))?;
-
-    let media = data
+        .ok_or_else(|| Error::other("response contained no data"))?
         .media
         .ok_or_else(|| Error::other("response contained no media"))?;
 
