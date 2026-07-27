@@ -314,6 +314,22 @@ impl Display for anime_info::MediaStatus {
 
 const COVER_WIDTH: u32 = 27;
 
+fn print_wrapped_lines(
+    stdout: &mut std::io::Stdout,
+    text: &str,
+    shift_right: u16,
+    space_available: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let lines = textwrap::wrap(text, space_available);
+
+    for line in lines {
+        execute!(stdout, cursor::MoveToColumn(shift_right))?;
+        writeln!(stdout, "{line}")?;
+    }
+
+    Ok(())
+}
+
 fn print_anime_info(
     media: &anime_info::AnimeInfoMedia,
     cover: Option<&DynamicImage>,
@@ -382,6 +398,12 @@ fn print_anime_info(
         shift_right = cover_columns + 3;
     }
 
+    let space_available = usize::from(
+        terminal_columns
+            .saturating_sub(shift_right)
+            .saturating_sub(1),
+    );
+
     let romaji = media
         .title
         .as_ref()
@@ -392,21 +414,26 @@ fn print_anime_info(
         .as_ref()
         .and_then(|title| title.native.as_deref());
 
-    execute!(stdout, cursor::MoveToColumn(shift_right))?;
-
     match (romaji, native) {
         (Some(romaji), Some(native)) => {
             if native == romaji {
                 writeln!(stdout, "{native}")?;
+                print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
             } else {
-                writeln!(stdout, "{romaji}")?;
-                execute!(stdout, cursor::MoveToColumn(shift_right))?;
-                writeln!(stdout, "{native}")?;
+                print_wrapped_lines(&mut stdout, native, shift_right, space_available)?;
+                print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?
             }
         }
-        (Some(romaji), None) => writeln!(stdout, "{romaji}")?,
-        (None, Some(native)) => writeln!(stdout, "{native}")?,
-        (None, None) => writeln!(stdout, "No Title")?,
+        (Some(romaji), None) => {
+            print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?
+        }
+        (None, Some(native)) => {
+            print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
+        }
+        (None, None) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+            writeln!(stdout, "No Title")?
+        }
     }
 
     writeln!(stdout)?;
@@ -447,24 +474,13 @@ fn print_anime_info(
         writeln!(stdout, "Status: {status}")?
     }
 
-    let space_available = usize::from(
-        terminal_columns
-            .saturating_sub(shift_right)
-            .saturating_sub(1),
-    );
-
     if let Some(genres) = &media.genres {
         let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
 
         if !genres.is_empty() {
             let genres = format!("Genres: {}", genres.join(" · "));
 
-            let lines = textwrap::wrap(&genres, space_available);
-
-            for line in lines {
-                execute!(stdout, cursor::MoveToColumn(shift_right))?;
-                writeln!(stdout, "{line}")?;
-            }
+            print_wrapped_lines(&mut stdout, &genres, shift_right, space_available)?
         };
     }
 
@@ -476,12 +492,7 @@ fn print_anime_info(
             .text()
             .collect();
 
-        let lines = textwrap::wrap(&description, space_available);
-
-        for line in lines {
-            execute!(stdout, cursor::MoveToColumn(shift_right))?;
-            writeln!(stdout, "{line}")?;
-        }
+        print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
 
         writeln!(stdout)?;
     }
