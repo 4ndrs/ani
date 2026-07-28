@@ -23,6 +23,11 @@ enum Commands {
         /// The AniList anime id
         id: i64,
     },
+    /// Search for anime
+    Search {
+        /// The query to search for
+        query: String,
+    },
     // FIXME: this hide true doesn't work for completions
     // https://github.com/clap-rs/clap/discussions/5214#discussioncomment-7577615
     #[command(hide = true)]
@@ -47,6 +52,14 @@ struct AnimeInfo;
     response_derives = "Debug"
 )]
 struct AnimeCompletionSearch;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "graphql/schema.json",
+    query_path = "graphql/queries/anime_search.graphql",
+    response_derives = "Debug"
+)]
+struct AnimeSearch;
 
 const ANILIST_GRAPHQL_URL: &str = "https://graphql.anilist.co/";
 
@@ -141,6 +154,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("{zsh_completion}")
         }
+        Commands::Search { query } => {
+            println!("search {query}")
+        }
     }
 
     Ok(())
@@ -163,6 +179,83 @@ async fn fetch_image(
     let image = image::load_from_memory(&bytes)?;
 
     Ok(Some(image))
+}
+
+struct AnimeSearchItem {
+    id: i64,
+    title: String,
+    cover_url: Option<String>,
+}
+
+struct AnimeSearchResults {
+    has_next_page: bool,
+    items: Vec<AnimeSearchItem>,
+}
+
+async fn fetch_anime_search(
+    client: &reqwest::Client,
+    query: Option<String>,
+    page: i64,
+    per_page: i64,
+) -> Result<AnimeSearchResults, Box<dyn std::error::Error>> {
+    let variables = anime_search::Variables {
+        query,
+        page,
+        per_page,
+    };
+
+    let request_body = AnimeSearch::build_query(variables);
+
+    let response: Response<anime_search::ResponseData> = client
+        .post(ANILIST_GRAPHQL_URL)
+        .json(&request_body)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    if let Some(errors) = response.errors {
+        let messages = errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        return Err(Error::other(format!("GraphQL error: {messages}")).into());
+    }
+
+    let page = response
+        .data
+        .ok_or_else(|| "response contained no data")?
+        .page
+        .ok_or_else(|| "response contained no page")?;
+
+    let page_info = page
+        .page_info
+        .ok_or_else(|| "response contained no page info")?;
+
+    let results: Vec<_> = page
+        .results
+        .ok_or_else(|| "response contained no media")?
+        .into_iter()
+        .flatten()
+        .collect();
+
+    Ok(AnimeSearchResults {
+        has_next_page: page_info.has_next_page.unwrap_or_else(|| false),
+        items: results
+            .into_iter()
+            .map(|anime| AnimeSearchItem {
+                id: anime.id,
+                title: anime
+                    .title
+                    .and_then(|title| title.romaji)
+                    .unwrap_or_else(|| "No Title".into()),
+                cover_url: anime.cover_image.and_then(|cover| cover.medium),
+            })
+            .collect(),
+    })
 }
 
 struct AnimeCompletion {

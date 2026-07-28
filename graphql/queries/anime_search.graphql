@@ -1,0 +1,20 @@
+query AnimeSearch($page: Int!, $perPage: Int!, $query: String) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo {
+      # seems currently broken
+      # for aikatsu i get 625 as lastPage but there are only 3
+      lastPage
+      currentPage
+      hasNextPage
+    }
+    results: media(type: ANIME, sort: SCORE_DESC, search: $query) {
+      id
+      title {
+        romaji
+      }
+      coverImage {
+        medium
+      }
+    }
+  }
+}
