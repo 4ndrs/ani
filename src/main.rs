@@ -869,12 +869,15 @@ async fn print_anime_search(
     let has_next_page = results.has_next_page;
 
     let items: Vec<LoadedAnime> =
-        futures::future::try_join_all(results.items.into_iter().map(|anime| async {
-            let cover = fetch_image(client, anime.cover_url.as_deref()).await?;
+        futures::future::join_all(results.items.into_iter().map(|anime| async {
+            let cover = fetch_image(client, anime.cover_url.as_deref())
+                .await
+                .ok()
+                .flatten();
 
-            Ok::<LoadedAnime, Box<dyn std::error::Error>>(LoadedAnime { anime, cover })
+            LoadedAnime { anime, cover }
         }))
-        .await?;
+        .await;
 
     for item in items {
         print_anime_info(&item.anime, item.cover.as_ref())?;
