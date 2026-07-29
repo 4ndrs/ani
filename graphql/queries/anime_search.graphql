@@ -11,9 +11,19 @@ query AnimeSearch($page: Int!, $perPage: Int!, $query: String) {
       id
       title {
         romaji
+        native
       }
+      format
+      description
+      season
+      seasonYear
+      episodes
+      averageScore
+      status
+      siteUrl
+      genres
       coverImage {
-        medium
+        extraLarge
       }
     }
   }

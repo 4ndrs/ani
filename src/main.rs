@@ -35,6 +35,8 @@ enum Commands {
     CompletionSearch { query: String },
     /// Generate zsh completions and print them to the screen
     GenerateZshCompletions,
+    /// Test some stuff
+    Test,
 }
 
 #[derive(GraphQLQuery)]
@@ -60,6 +62,270 @@ struct AnimeCompletionSearch;
     response_derives = "Debug"
 )]
 struct AnimeSearch;
+
+struct AnimeCompletion {
+    id: i64,
+    title: String,
+}
+
+impl Display for AnimeCompletion {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{}\t{}", self.id, self.title)
+    }
+}
+
+struct AnimeTitle {
+    romaji: Option<String>,
+    native: Option<String>,
+}
+
+impl From<anime_info::AnimeInfoMediaTitle> for AnimeTitle {
+    fn from(value: anime_info::AnimeInfoMediaTitle) -> Self {
+        Self {
+            romaji: value.romaji,
+            native: value.native,
+        }
+    }
+}
+
+impl From<anime_search::AnimeSearchPageResultsTitle> for AnimeTitle {
+    fn from(value: anime_search::AnimeSearchPageResultsTitle) -> Self {
+        Self {
+            romaji: value.romaji,
+            native: value.native,
+        }
+    }
+}
+
+struct Anime {
+    id: i64,
+    title: Option<AnimeTitle>,
+    genres: Option<Vec<String>>,
+    format: Option<MediaFormat>,
+    status: Option<MediaStatus>,
+    season: Option<MediaSeason>,
+    episodes: Option<i64>,
+    site_url: Option<String>,
+    cover_url: Option<String>,
+    season_year: Option<i64>,
+    description: Option<String>,
+    average_score: Option<i64>,
+}
+
+impl From<anime_info::AnimeInfoMedia> for Anime {
+    fn from(anime: anime_info::AnimeInfoMedia) -> Self {
+        Self {
+            id: anime.id,
+            season_year: anime.season_year,
+            average_score: anime.average_score,
+            description: anime.description,
+            site_url: anime.site_url,
+            episodes: anime.episodes,
+            genres: anime.genres.into_iter().flatten().collect(),
+            status: anime.status.map(|status| status.into()),
+            season: anime.season.map(|season| season.into()),
+            format: anime.format.map(|format| format.into()),
+            title: anime.title.map(|title| title.into()),
+            cover_url: anime.cover_image.and_then(|cover| cover.extra_large),
+        }
+    }
+}
+
+impl From<anime_search::AnimeSearchPageResults> for Anime {
+    fn from(anime: anime_search::AnimeSearchPageResults) -> Self {
+        Self {
+            id: anime.id,
+            season_year: anime.season_year,
+            average_score: anime.average_score,
+            description: anime.description,
+            site_url: anime.site_url,
+            episodes: anime.episodes,
+            genres: anime.genres.into_iter().flatten().collect(),
+            status: anime.status.map(|status| status.into()),
+            season: anime.season.map(|season| season.into()),
+            format: anime.format.map(|format| format.into()),
+            title: anime.title.map(|title| title.into()),
+            cover_url: anime.cover_image.and_then(|cover| cover.extra_large),
+        }
+    }
+}
+
+struct AnimeSearchResults {
+    has_next_page: bool,
+    items: Vec<Anime>,
+}
+
+enum MediaSeason {
+    FALL,
+    WINTER,
+    SPRING,
+    SUMMER,
+
+    #[allow(dead_code)]
+    Other(String),
+}
+
+impl Display for MediaSeason {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let season = match self {
+            MediaSeason::FALL => "Fall",
+            MediaSeason::WINTER => "Winter",
+            MediaSeason::SPRING => "Spring",
+            MediaSeason::SUMMER => "Summer",
+            _ => "Unknown",
+        };
+
+        formatter.write_str(season)
+    }
+}
+
+impl From<anime_info::MediaSeason> for MediaSeason {
+    fn from(value: anime_info::MediaSeason) -> Self {
+        match value {
+            anime_info::MediaSeason::FALL => Self::FALL,
+            anime_info::MediaSeason::WINTER => Self::WINTER,
+            anime_info::MediaSeason::SPRING => Self::SPRING,
+            anime_info::MediaSeason::SUMMER => Self::SUMMER,
+            anime_info::MediaSeason::Other(other) => Self::Other(other),
+        }
+    }
+}
+
+impl From<anime_search::MediaSeason> for MediaSeason {
+    fn from(value: anime_search::MediaSeason) -> Self {
+        match value {
+            anime_search::MediaSeason::FALL => Self::FALL,
+            anime_search::MediaSeason::WINTER => Self::WINTER,
+            anime_search::MediaSeason::SPRING => Self::SPRING,
+            anime_search::MediaSeason::SUMMER => Self::SUMMER,
+            anime_search::MediaSeason::Other(other) => Self::Other(other),
+        }
+    }
+}
+
+enum MediaFormat {
+    TV,
+    OVA,
+    ONA,
+    MANGA,
+    MOVIE,
+    NOVEL,
+    MUSIC,
+    SPECIAL,
+    OneShot,
+    TvShort,
+
+    #[allow(dead_code)]
+    Other(String),
+}
+
+impl Display for MediaFormat {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let format = match self {
+            MediaFormat::TV => "TV",
+            MediaFormat::OVA => "OVA",
+            MediaFormat::ONA => "ONA",
+            MediaFormat::MANGA => "Manga",
+            MediaFormat::MOVIE => "Movie",
+            MediaFormat::NOVEL => "Novel",
+            MediaFormat::MUSIC => "Music",
+            MediaFormat::SPECIAL => "Special",
+            MediaFormat::OneShot => "One Shot",
+            MediaFormat::TvShort => "TV Short",
+            _ => "Unknown",
+        };
+
+        formatter.write_str(format)
+    }
+}
+
+impl From<anime_info::MediaFormat> for MediaFormat {
+    fn from(value: anime_info::MediaFormat) -> Self {
+        match value {
+            anime_info::MediaFormat::TV => Self::TV,
+            anime_info::MediaFormat::OVA => Self::OVA,
+            anime_info::MediaFormat::ONA => Self::ONA,
+            anime_info::MediaFormat::MOVIE => Self::MOVIE,
+            anime_info::MediaFormat::MUSIC => Self::MUSIC,
+            anime_info::MediaFormat::MANGA => Self::MANGA,
+            anime_info::MediaFormat::NOVEL => Self::NOVEL,
+            anime_info::MediaFormat::SPECIAL => Self::SPECIAL,
+            anime_info::MediaFormat::TV_SHORT => Self::TvShort,
+            anime_info::MediaFormat::ONE_SHOT => Self::OneShot,
+            anime_info::MediaFormat::Other(other) => Self::Other(other),
+        }
+    }
+}
+
+impl From<anime_search::MediaFormat> for MediaFormat {
+    fn from(value: anime_search::MediaFormat) -> Self {
+        match value {
+            anime_search::MediaFormat::TV => Self::TV,
+            anime_search::MediaFormat::OVA => Self::OVA,
+            anime_search::MediaFormat::ONA => Self::ONA,
+            anime_search::MediaFormat::MOVIE => Self::MOVIE,
+            anime_search::MediaFormat::MUSIC => Self::MUSIC,
+            anime_search::MediaFormat::MANGA => Self::MANGA,
+            anime_search::MediaFormat::NOVEL => Self::NOVEL,
+            anime_search::MediaFormat::SPECIAL => Self::SPECIAL,
+            anime_search::MediaFormat::TV_SHORT => Self::TvShort,
+            anime_search::MediaFormat::ONE_SHOT => Self::OneShot,
+            anime_search::MediaFormat::Other(other) => Self::Other(other),
+        }
+    }
+}
+
+enum MediaStatus {
+    HIATUS,
+    FINISHED,
+    RELEASING,
+    CANCELLED,
+    NotYetReleased,
+
+    #[allow(dead_code)]
+    Other(String),
+}
+
+impl Display for MediaStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let status = match self {
+            MediaStatus::HIATUS => "Hiatus",
+            MediaStatus::FINISHED => "Finished",
+            MediaStatus::RELEASING => "Releasing",
+            MediaStatus::CANCELLED => "Cancelled",
+            MediaStatus::NotYetReleased => "Not Yet Released",
+            _ => "Unknown",
+        };
+
+        formatter.write_str(status)
+    }
+}
+
+impl From<anime_info::MediaStatus> for MediaStatus {
+    fn from(value: anime_info::MediaStatus) -> Self {
+        match value {
+            anime_info::MediaStatus::HIATUS => Self::HIATUS,
+            anime_info::MediaStatus::FINISHED => Self::FINISHED,
+            anime_info::MediaStatus::RELEASING => Self::RELEASING,
+            anime_info::MediaStatus::CANCELLED => Self::CANCELLED,
+            anime_info::MediaStatus::Other(other) => Self::Other(other),
+            anime_info::MediaStatus::NOT_YET_RELEASED => Self::NotYetReleased,
+        }
+    }
+}
+
+impl From<anime_search::MediaStatus> for MediaStatus {
+    fn from(value: anime_search::MediaStatus) -> Self {
+        match value {
+            anime_search::MediaStatus::HIATUS => Self::HIATUS,
+            anime_search::MediaStatus::FINISHED => Self::FINISHED,
+            anime_search::MediaStatus::RELEASING => Self::RELEASING,
+            anime_search::MediaStatus::CANCELLED => Self::CANCELLED,
+            anime_search::MediaStatus::Other(other) => Self::Other(other),
+            anime_search::MediaStatus::NOT_YET_RELEASED => Self::NotYetReleased,
+        }
+    }
+}
 
 const ANILIST_GRAPHQL_URL: &str = "https://graphql.anilist.co/";
 
@@ -119,13 +385,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let client = reqwest::Client::new();
 
             let anime = fetch_anime_info(&client, id).await?;
-
-            let image_url = anime
-                .cover_image
-                .as_ref()
-                .and_then(|image| image.extra_large.as_deref());
-
-            let cover_image = fetch_image(&client, image_url).await?;
+            let cover_image = fetch_image(&client, anime.cover_url.as_deref()).await?;
 
             print_anime_info(&anime, cover_image.as_ref())?;
         }
@@ -155,7 +415,78 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{zsh_completion}")
         }
         Commands::Search { query } => {
-            println!("search {query}")
+            let client = reqwest::Client::new();
+            let results = fetch_anime_search(&client, Some(query), 1, 8).await?;
+
+            print_anime_search(&client, results).await?;
+        }
+        Commands::Test => {
+            let padding = 1;
+            let cover_width = 20;
+            let number_of_items = 10;
+            let minimum_gap = 2;
+
+            let mut stdout = stdout();
+
+            let (terminal_columns, _) = crossterm::terminal::size()?;
+
+            let space_available = terminal_columns.saturating_sub(padding * 2);
+
+            let cover_width = u16::try_from(cover_width)?;
+
+            let item_count = (space_available + minimum_gap) / (cover_width + minimum_gap);
+
+            let gap = if item_count > 1 {
+                (space_available - item_count * cover_width) / (item_count - 1)
+            } else {
+                0
+            };
+
+            dbg!(
+                gap,
+                padding,
+                item_count,
+                minimum_gap,
+                cover_width,
+                number_of_items,
+                terminal_columns,
+                space_available
+            );
+
+            let url = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/small/bx197868-sm5jcjPKWhNL.png";
+
+            let cover = fetch_image(&reqwest::Client::new(), Some(url))
+                .await?
+                .expect("nada");
+
+            let mut item_step = 0;
+
+            let (_, start_row) = cursor::position()?;
+
+            for _ in 0..number_of_items {
+                let config = viuer::Config {
+                    x: if item_step == 0 { 1 } else { 0 },
+                    width: Some(u32::from(cover_width)),
+                    absolute_offset: false,
+                    ..Default::default()
+                };
+
+                viuer::print(&cover, &config)?;
+
+                if item_step < item_count {
+                    execute!(
+                        stdout,
+                        cursor::MoveToRow(start_row),
+                        cursor::MoveRight(cover_width + gap)
+                    )?;
+
+                    item_step = item_step + 1;
+                } else {
+                    execute!(stdout, cursor::MoveToColumn(0))?;
+
+                    item_step = 0
+                }
+            }
         }
     }
 
@@ -179,17 +510,6 @@ async fn fetch_image(
     let image = image::load_from_memory(&bytes)?;
 
     Ok(Some(image))
-}
-
-struct AnimeSearchItem {
-    id: i64,
-    title: String,
-    cover_url: Option<String>,
-}
-
-struct AnimeSearchResults {
-    has_next_page: bool,
-    items: Vec<AnimeSearchItem>,
 }
 
 async fn fetch_anime_search(
@@ -231,42 +551,24 @@ async fn fetch_anime_search(
         .page
         .ok_or_else(|| "response contained no page")?;
 
-    let page_info = page
+    let has_next_page = page
         .page_info
-        .ok_or_else(|| "response contained no page info")?;
+        .ok_or_else(|| "response contained no page info")?
+        .has_next_page
+        .unwrap_or_default();
 
-    let results: Vec<_> = page
+    let items: Vec<Anime> = page
         .results
-        .ok_or_else(|| "response contained no media")?
+        .ok_or_else(|| "response contained no results")?
         .into_iter()
         .flatten()
+        .map(Into::into)
         .collect();
 
     Ok(AnimeSearchResults {
-        has_next_page: page_info.has_next_page.unwrap_or_else(|| false),
-        items: results
-            .into_iter()
-            .map(|anime| AnimeSearchItem {
-                id: anime.id,
-                title: anime
-                    .title
-                    .and_then(|title| title.romaji)
-                    .unwrap_or_else(|| "No Title".into()),
-                cover_url: anime.cover_image.and_then(|cover| cover.medium),
-            })
-            .collect(),
+        items,
+        has_next_page,
     })
-}
-
-struct AnimeCompletion {
-    id: i64,
-    title: String,
-}
-
-impl Display for AnimeCompletion {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{}\t{}", self.id, self.title)
-    }
 }
 
 async fn fetch_anime_completion_search(
@@ -324,7 +626,7 @@ async fn fetch_anime_completion_search(
 async fn fetch_anime_info(
     client: &reqwest::Client,
     id: i64,
-) -> Result<anime_info::AnimeInfoMedia, Box<dyn std::error::Error>> {
+) -> Result<Anime, Box<dyn std::error::Error>> {
     let variables = anime_info::Variables { id };
     let request_body = AnimeInfo::build_query(variables);
 
@@ -333,7 +635,6 @@ async fn fetch_anime_info(
         .json(&request_body)
         .send()
         .await?
-        .error_for_status()?
         .json()
         .await?;
 
@@ -353,59 +654,8 @@ async fn fetch_anime_info(
         .media
         .ok_or_else(|| Error::other("response contained no media"))?;
 
-    Ok(media)
+    Ok(media.into())
 }
-
-impl Display for anime_info::MediaFormat {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        let format = match self {
-            anime_info::MediaFormat::TV => "TV",
-            anime_info::MediaFormat::OVA => "OVA",
-            anime_info::MediaFormat::ONA => "ONA",
-            anime_info::MediaFormat::MANGA => "Manga",
-            anime_info::MediaFormat::MOVIE => "Movie",
-            anime_info::MediaFormat::NOVEL => "Novel",
-            anime_info::MediaFormat::MUSIC => "Music",
-            anime_info::MediaFormat::SPECIAL => "Special",
-            anime_info::MediaFormat::ONE_SHOT => "One Shot",
-            anime_info::MediaFormat::TV_SHORT => "TV Short",
-            _ => "Unknown",
-        };
-
-        formatter.write_str(format)
-    }
-}
-
-impl Display for anime_info::MediaSeason {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        let season = match self {
-            anime_info::MediaSeason::FALL => "Fall",
-            anime_info::MediaSeason::WINTER => "Winter",
-            anime_info::MediaSeason::SPRING => "Spring",
-            anime_info::MediaSeason::SUMMER => "Summer",
-            _ => "Unknown",
-        };
-
-        formatter.write_str(season)
-    }
-}
-
-impl Display for anime_info::MediaStatus {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        let status = match self {
-            anime_info::MediaStatus::HIATUS => "Hiatus",
-            anime_info::MediaStatus::FINISHED => "Finished",
-            anime_info::MediaStatus::RELEASING => "Releasing",
-            anime_info::MediaStatus::CANCELLED => "Cancelled",
-            anime_info::MediaStatus::NOT_YET_RELEASED => "Not Yet Released",
-            _ => "Unknown",
-        };
-
-        formatter.write_str(status)
-    }
-}
-
-const COVER_WIDTH: u32 = 27;
 
 fn print_wrapped_lines(
     stdout: &mut std::io::Stdout,
@@ -424,7 +674,7 @@ fn print_wrapped_lines(
 }
 
 fn print_anime_info(
-    media: &anime_info::AnimeInfoMedia,
+    media: &Anime,
     cover: Option<&DynamicImage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // ┌──────────────────────┐  Made in Abyss
@@ -450,6 +700,8 @@ fn print_anime_info(
     let (terminal_columns, terminal_rows) = terminal::size()?;
 
     if let Some(cover) = cover {
+        const COVER_WIDTH: u32 = 27;
+
         let cover_resized = viuer::resize(cover, Some(COVER_WIDTH), None);
 
         let (cover_columns, cover_rows) = (
@@ -568,7 +820,7 @@ fn print_anime_info(
     }
 
     if let Some(genres) = &media.genres {
-        let genres: Vec<&str> = genres.iter().flatten().map(String::as_str).collect();
+        let genres: Vec<&str> = genres.iter().map(String::as_str).collect();
 
         if !genres.is_empty() {
             let genres = format!("Genres: {}", genres.join(" · "));
@@ -599,6 +851,29 @@ fn print_anime_info(
 
     if current_row < row_below_image {
         execute!(stdout, cursor::MoveTo(0, row_below_image))?
+    }
+
+    Ok(())
+}
+
+async fn print_anime_search(
+    client: &reqwest::Client,
+    results: AnimeSearchResults,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let items = results.items;
+    let has_next_page = results.has_next_page;
+
+    for anime in items {
+        let cover = fetch_image(client, anime.cover_url.as_deref()).await?;
+
+        print_anime_info(&anime, cover.as_ref())?;
+
+        println!();
+        println!();
+    }
+
+    if has_next_page {
+        println!("page 2 is available")
     }
 
     Ok(())

@@ -1,5 +1,6 @@
 query AnimeInfo($id: Int!) {
   Media(type: ANIME, id: $id) {
+    id
     title {
       romaji
       native
