@@ -419,7 +419,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let client = reqwest::Client::new();
             let results = fetch_anime_search(&client, Some(query), 1, 8).await?;
 
-            print_anime_search(&client, results).await?;
+            let items: Vec<(Anime, Option<DynamicImage>)> =
+                futures::future::join_all(results.items.into_iter().map(|anime| async {
+                    let cover = fetch_image(&client, anime.cover_url.as_deref())
+                        .await
+                        .ok()
+                        .flatten();
+
+                    (anime, cover)
+                }))
+                .await;
+
+            for (anime, cover) in items {
+                print_anime_info(&anime, cover.as_ref())?;
+
+                println!("\n");
+            }
+
+            if results.has_next_page {
+                println!("page 2 is available")
+            }
         }
         Commands::Test => {
             let padding = 1;
@@ -852,36 +871,6 @@ fn print_anime_info(
 
     if current_row < row_below_image {
         execute!(stdout, cursor::MoveTo(0, row_below_image))?
-    }
-
-    Ok(())
-}
-
-async fn print_anime_search(
-    client: &reqwest::Client,
-    results: AnimeSearchResults,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let has_next_page = results.has_next_page;
-
-    let items: Vec<(Anime, Option<DynamicImage>)> =
-        futures::future::join_all(results.items.into_iter().map(|anime| async {
-            let cover = fetch_image(client, anime.cover_url.as_deref())
-                .await
-                .ok()
-                .flatten();
-
-            (anime, cover)
-        }))
-        .await;
-
-    for (anime, cover) in items {
-        print_anime_info(&anime, cover.as_ref())?;
-
-        println!("\n");
-    }
-
-    if has_next_page {
-        println!("page 2 is available")
     }
 
     Ok(())
