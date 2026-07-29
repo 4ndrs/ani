@@ -28,6 +28,12 @@ enum Commands {
     Search {
         /// The query to search for
         query: String,
+        #[arg(long, short = 'p', default_value = "1")]
+        /// The search page number
+        page: i64,
+        /// How many items to show per page
+        #[arg(long, short = 'x', default_value = "8")]
+        per_page: i64,
     },
     // FIXME: this hide true doesn't work for completions
     // https://github.com/clap-rs/clap/discussions/5214#discussioncomment-7577615
@@ -411,13 +417,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let zsh_completion =
                 String::from_utf8(buffer)?.replace("anime id:_default", "anime id:_ani_info");
 
+            // FIXME: i think this is messing up the first execution of the anime completion query
+            // need to put the anime info completion before the last part of the script
             let zsh_completion = format!("{}\n{}", zsh_completion, ANIME_INFO_ZSH_COMPLETION);
 
             println!("{zsh_completion}")
         }
-        Commands::Search { query } => {
+        Commands::Search {
+            page,
+            query,
+            per_page,
+        } => {
             let client = reqwest::Client::new();
-            let results = fetch_anime_search(&client, Some(query), 1, 8).await?;
+            let results = fetch_anime_search(&client, Some(query), page, per_page).await?;
 
             let items: Vec<(Anime, Option<DynamicImage>)> =
                 futures::future::join_all(results.items.into_iter().map(|anime| async {
@@ -437,7 +449,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if results.has_next_page {
-                println!("page 2 is available")
+                println!("next page is available")
             }
         }
         Commands::Test => {
