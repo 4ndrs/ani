@@ -16,6 +16,7 @@ struct Cli {
     #[command(subcommand)]
     commands: Commands,
 }
+
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Show information about an anime
@@ -856,17 +857,27 @@ fn print_anime_info(
     Ok(())
 }
 
+struct LoadedAnime {
+    anime: Anime,
+    cover: Option<DynamicImage>,
+}
+
 async fn print_anime_search(
     client: &reqwest::Client,
     results: AnimeSearchResults,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let items = results.items;
     let has_next_page = results.has_next_page;
 
-    for anime in items {
-        let cover = fetch_image(client, anime.cover_url.as_deref()).await?;
+    let items: Vec<LoadedAnime> =
+        futures::future::try_join_all(results.items.into_iter().map(|anime| async {
+            let cover = fetch_image(client, anime.cover_url.as_deref()).await?;
 
-        print_anime_info(&anime, cover.as_ref())?;
+            Ok::<LoadedAnime, Box<dyn std::error::Error>>(LoadedAnime { anime, cover })
+        }))
+        .await?;
+
+    for item in items {
+        print_anime_info(&item.anime, item.cover.as_ref())?;
 
         println!();
         println!();
