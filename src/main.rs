@@ -857,33 +857,27 @@ fn print_anime_info(
     Ok(())
 }
 
-struct LoadedAnime {
-    anime: Anime,
-    cover: Option<DynamicImage>,
-}
-
 async fn print_anime_search(
     client: &reqwest::Client,
     results: AnimeSearchResults,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let has_next_page = results.has_next_page;
 
-    let items: Vec<LoadedAnime> =
+    let items: Vec<(Anime, Option<DynamicImage>)> =
         futures::future::join_all(results.items.into_iter().map(|anime| async {
             let cover = fetch_image(client, anime.cover_url.as_deref())
                 .await
                 .ok()
                 .flatten();
 
-            LoadedAnime { anime, cover }
+            (anime, cover)
         }))
         .await;
 
-    for item in items {
-        print_anime_info(&item.anime, item.cover.as_ref())?;
+    for (anime, cover) in items {
+        print_anime_info(&anime, cover.as_ref())?;
 
-        println!();
-        println!();
+        println!("\n");
     }
 
     if has_next_page {
