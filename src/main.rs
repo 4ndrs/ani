@@ -3,7 +3,7 @@ use std::{
     io::{Error, Write, stdout},
 };
 
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, shells};
 use crossterm::{cursor, execute, terminal};
 use graphql_client::{GraphQLQuery, Response};
@@ -17,12 +17,23 @@ struct Cli {
     commands: Commands,
 }
 
+#[derive(Clone, Debug, ValueEnum)]
+enum InfoType {
+    #[value(alias = "a")]
+    Anime,
+    #[value(alias = "c")]
+    Character,
+}
+
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Show information about an anime
+    /// Show information about an anime or character
     Info {
-        /// The AniList anime id
+        /// The AniList id
         id: i64,
+        /// The type of information to retrieve from AniList
+        #[arg(long, short, ignore_case = true, default_value = "anime")]
+        r#type: InfoType,
     },
     /// Search for anime
     Search {
@@ -43,7 +54,10 @@ enum Commands {
     /// Generate zsh completions and print them to the screen
     GenerateZshCompletions,
     /// Test some stuff
-    Test,
+    Test {
+        #[arg(long, short, ignore_case = true, default_value = "anime")]
+        r#type: InfoType,
+    },
 }
 
 #[derive(GraphQLQuery)]
@@ -53,6 +67,14 @@ enum Commands {
     response_derives = "Debug"
 )]
 struct AnimeInfo;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "graphql/schema.json",
+    query_path = "graphql/queries/character_info.graphql",
+    response_derives = "Debug"
+)]
+struct CharacterInfo;
 
 #[derive(GraphQLQuery)]
 #[graphql(
@@ -388,7 +410,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     match args.commands {
-        Commands::Info { id } => {
+        Commands::Info { id, r#type } => {
             let client = reqwest::Client::new();
 
             let anime = fetch_anime_info(&client, id).await?;
@@ -452,73 +474,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("next page is available")
             }
         }
-        Commands::Test => {
-            let padding = 1;
-            let cover_width = 20;
-            let number_of_items = 10;
-            let minimum_gap = 2;
-
-            let mut stdout = stdout();
-
-            let (terminal_columns, _) = crossterm::terminal::size()?;
-
-            let space_available = terminal_columns.saturating_sub(padding * 2);
-
-            let cover_width = u16::try_from(cover_width)?;
-
-            let item_count = (space_available + minimum_gap) / (cover_width + minimum_gap);
-
-            let gap = if item_count > 1 {
-                (space_available - item_count * cover_width) / (item_count - 1)
-            } else {
-                0
-            };
-
-            dbg!(
-                gap,
-                padding,
-                item_count,
-                minimum_gap,
-                cover_width,
-                number_of_items,
-                terminal_columns,
-                space_available
-            );
-
-            let url = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/small/bx197868-sm5jcjPKWhNL.png";
-
-            let cover = fetch_image(&reqwest::Client::new(), Some(url))
-                .await?
-                .expect("nada");
-
-            let mut item_step = 0;
-
-            let (_, start_row) = cursor::position()?;
-
-            for _ in 0..number_of_items {
-                let config = viuer::Config {
-                    x: if item_step == 0 { 1 } else { 0 },
-                    width: Some(u32::from(cover_width)),
-                    absolute_offset: false,
-                    ..Default::default()
-                };
-
-                viuer::print(&cover, &config)?;
-
-                if item_step < item_count {
-                    execute!(
-                        stdout,
-                        cursor::MoveToRow(start_row),
-                        cursor::MoveRight(cover_width + gap)
-                    )?;
-
-                    item_step = item_step + 1;
-                } else {
-                    execute!(stdout, cursor::MoveToColumn(0))?;
-
-                    item_step = 0
-                }
-            }
+        Commands::Test { r#type } => {
+            dbg!(r#type);
         }
     }
 
@@ -886,4 +843,31 @@ fn print_anime_info(
     }
 
     Ok(())
+}
+
+fn print_character_info() {
+    // ┌──────────────────────┐  François Claire
+    // │                      │  クレア・フランソワ
+    // │                      │
+    // │                      │  Birthday: Mar 28
+    // │                      │  Age: 15-17
+    // │                      │  Gender: Female
+    // │                      │
+    // │     COVER IMAGE      │  **Height:** 157 cm (5'2\")\n\nClaire François is a proud noble who
+    // │                      │  in the original [Revolution] is the villainess who bullies the
+    // │                      │  heroine. Claire is prideful with a competitive side to prove her
+    // │                      │  worth as well as her family name. Her threatening behavior
+    // │                      │  conceals her fragile heart that comes from her childhood
+    // │                      │  experiences. Becomes more prone to jealousy as people she cares
+    // │                      │  for may leave her. Her arrogant personality is mainly influenced
+    // └──────────────────────┘  by her father doting on her in her childhood more than anything.
+    //
+    // Voice
+    //   [122695] Nanami Karin
+    //
+    // Appears in
+    //   [158704] Watashi no Oshi wa Akuyaku Reijou
+    //   [168999] Watashi no Oshi wa Akuyaku Reijou Rae to Claire ni Ichimon Ittou
+
+    todo!()
 }

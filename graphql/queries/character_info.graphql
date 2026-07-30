@@ -1,0 +1,45 @@
+query CharacterInfo($id: Int) {
+  Character(id: $id) {
+    id
+    name {
+      first
+      last
+      native
+    }
+    image {
+      large
+    }
+    description
+    age
+    gender
+    dateOfBirth {
+      year
+      month
+      day
+    }
+    media(type: ANIME) {
+      pageInfo {
+        hasNextPage
+      }
+      edges {
+        id
+        characterRole
+        voiceActorRoles(sort: [RELEVANCE, ID], language: JAPANESE) {
+          voiceActor {
+            id
+            name {
+              first
+              last
+            }
+          }
+        }
+        node {
+          id
+          title {
+            romaji
+          }
+        }
+      }
+    }
+  }
+}
