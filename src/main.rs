@@ -475,23 +475,23 @@ impl From<character_info::CharacterInfoCharacter> for Character {
         let appears_in: Vec<_> = character
             .media
             .iter()
-            .flat_map(|media| media.edges.as_ref())
+            .filter_map(|media| media.edges.as_ref())
             .flatten()
             .flatten()
-            .flat_map(|edge| edge.node.clone())
+            .filter_map(|edge| edge.node.clone())
             .map(CharacterAppearsIn::from)
             .collect();
 
         let voice_actors: Vec<_> = character
             .media
             .into_iter()
-            .flat_map(|media| media.edges)
+            .filter_map(|media| media.edges)
             .flatten()
             .flatten()
-            .flat_map(|edge| edge.voice_actor_roles)
+            .filter_map(|edge| edge.voice_actor_roles)
             .flatten()
             .flatten()
-            .flat_map(|role| role.voice_actor)
+            .filter_map(|role| role.voice_actor)
             .map(CharacterVoiceActor::from)
             .collect();
 
