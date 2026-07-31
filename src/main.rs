@@ -356,6 +356,161 @@ impl From<anime_search::MediaStatus> for MediaStatus {
     }
 }
 
+struct Name {
+    last: Option<String>,
+    first: Option<String>,
+    native: Option<String>,
+}
+
+impl From<character_info::CharacterInfoCharacterName> for Name {
+    fn from(value: character_info::CharacterInfoCharacterName) -> Self {
+        Self {
+            last: value.last,
+            first: value.first,
+            native: value.native,
+        }
+    }
+}
+
+impl From<character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActorName> for Name {
+    fn from(
+        value: character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActorName,
+    ) -> Self {
+        Self {
+            last: value.last,
+            first: value.first,
+            native: None,
+        }
+    }
+}
+
+struct FuzzyDate {
+    day: Option<i64>,
+    year: Option<i64>,
+    month: Option<i64>,
+}
+
+impl From<character_info::CharacterInfoCharacterDateOfBirth> for FuzzyDate {
+    fn from(value: character_info::CharacterInfoCharacterDateOfBirth) -> Self {
+        Self {
+            day: value.day,
+            year: value.year,
+            month: value.month,
+        }
+    }
+}
+
+struct CoverUrl {
+    large: Option<String>,
+    medium: Option<String>,
+}
+
+impl From<character_info::CharacterInfoCharacterImage> for CoverUrl {
+    fn from(value: character_info::CharacterInfoCharacterImage) -> Self {
+        Self {
+            large: value.large,
+            medium: value.medium,
+        }
+    }
+}
+
+struct CharacterAppearsIn {
+    id: i64,
+    title: Option<String>,
+}
+
+impl From<character_info::CharacterInfoCharacterMediaEdgesNode> for CharacterAppearsIn {
+    fn from(value: character_info::CharacterInfoCharacterMediaEdgesNode) -> Self {
+        Self {
+            id: value.id,
+            title: value.title.map(|title| title.romaji).flatten(),
+        }
+    }
+}
+
+struct CharacterVoiceActor {
+    id: i64,
+    name: Option<Name>,
+}
+
+impl From<character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActor>
+    for CharacterVoiceActor
+{
+    fn from(
+        value: character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActor,
+    ) -> Self {
+        Self {
+            id: value.id,
+            name: value.name.map(|name| name.into()),
+        }
+    }
+}
+
+struct Character {
+    id: i64,
+    age: Option<String>,
+    name: Option<Name>,
+    image: Option<CoverUrl>,
+    gender: Option<String>,
+    appears_in: Vec<CharacterAppearsIn>,
+    description: Option<String>,
+    voice_actors: Vec<CharacterVoiceActor>,
+    date_of_birth: Option<FuzzyDate>,
+}
+
+impl Clone for character_info::CharacterInfoCharacterMediaEdgesNode {
+    fn clone(&self) -> Self {
+        let romaji = self.title.as_ref().and_then(|title| title.romaji.clone());
+
+        Self {
+            id: self.id.clone(),
+            title: Some(character_info::CharacterInfoCharacterMediaEdgesNodeTitle { romaji }),
+        }
+    }
+}
+
+impl From<character_info::CharacterInfoCharacter> for Character {
+    fn from(character: character_info::CharacterInfoCharacter) -> Self {
+        // this was hell
+        let appears_in: Vec<_> = character
+            .media
+            .iter()
+            .flat_map(|media| media.edges.as_ref())
+            .flatten()
+            .flatten()
+            .flat_map(|edge| edge.node.clone())
+            .map(CharacterAppearsIn::from)
+            .collect();
+
+        let voice_actors: Vec<_> = character
+            .media
+            .into_iter()
+            .flat_map(|media| media.edges)
+            .flatten()
+            .flatten()
+            .flat_map(|edge| edge.voice_actor_roles)
+            .flatten()
+            .flatten()
+            .flat_map(|role| role.voice_actor)
+            .map(CharacterVoiceActor::from)
+            .collect();
+
+        Self {
+            id: character.id,
+            age: character.age,
+            name: character.name.map(|name| name.into()),
+            image: character.image.map(|image| image.into()),
+            gender: character.gender,
+            description: character.description,
+            date_of_birth: character
+                .date_of_birth
+                .map(|date_of_birth| date_of_birth.into()),
+            appears_in,
+            voice_actors,
+        }
+    }
+}
+
 const ANILIST_GRAPHQL_URL: &str = "https://graphql.anilist.co/";
 
 const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
@@ -644,6 +799,40 @@ async fn fetch_anime_info(
         .ok_or_else(|| Error::other("response contained no media"))?;
 
     Ok(media.into())
+}
+
+async fn fetch_character_info(
+    client: &reqwest::Client,
+    id: i64,
+) -> Result<Character, Box<dyn std::error::Error>> {
+    let variables = character_info::Variables { id };
+    let request_body = CharacterInfo::build_query(variables);
+
+    let response: Response<character_info::ResponseData> = client
+        .post(ANILIST_GRAPHQL_URL)
+        .json(&request_body)
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    if let Some(errors) = response.errors {
+        let messages = errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        return Err(Error::other(format!("GraphQL error: {messages}")).into());
+    }
+
+    let character = response
+        .data
+        .ok_or_else(|| Error::other("response contained no data"))?
+        .character
+        .ok_or_else(|| Error::other("response contained no character"))?;
+
+    Ok(character.into())
 }
 
 fn print_wrapped_lines(

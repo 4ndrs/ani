@@ -1,4 +1,4 @@
-query CharacterInfo($id: Int) {
+query CharacterInfo($id: Int!) {
   Character(id: $id) {
     id
     name {
@@ -8,6 +8,7 @@ query CharacterInfo($id: Int) {
     }
     image {
       large
+      medium
     }
     description
     age
