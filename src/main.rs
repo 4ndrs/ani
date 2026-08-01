@@ -472,7 +472,7 @@ impl Clone for character_info::CharacterInfoCharacterMediaEdgesNode {
 
 impl From<character_info::CharacterInfoCharacter> for Character {
     fn from(character: character_info::CharacterInfoCharacter) -> Self {
-        let mut existing_voice_actors = HashSet::new();
+        let mut existing_voice_actor_ids = HashSet::new();
 
         // this was hell
         let (voice_actors, appears_in): (Vec<_>, Vec<_>) = character
@@ -494,22 +494,12 @@ impl From<character_info::CharacterInfoCharacter> for Character {
                             .flatten()
                             .flatten()
                             .filter_map(|role| {
-                                let id = role
-                                    .voice_actor
-                                    .as_ref()
-                                    .and_then(|voice_actor| Some(voice_actor.id));
+                                let voice_actor = role.voice_actor?;
 
-                                if let Some(id) = id {
-                                    if existing_voice_actors.contains(&id) {
-                                        return None;
-                                    } else {
-                                        existing_voice_actors.insert(id);
-                                    }
-                                }
-
-                                role.voice_actor
-                            })
-                            .map(CharacterVoiceActor::from),
+                                existing_voice_actor_ids
+                                    .insert(voice_actor.id)
+                                    .then(|| voice_actor.into())
+                            }),
                     );
 
                     (voice_actors, appears_in)
