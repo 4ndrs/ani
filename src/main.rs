@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::{self, Display},
     io::{Error, Write, stdout},
 };
@@ -471,6 +472,8 @@ impl Clone for character_info::CharacterInfoCharacterMediaEdgesNode {
 
 impl From<character_info::CharacterInfoCharacter> for Character {
     fn from(character: character_info::CharacterInfoCharacter) -> Self {
+        let mut existing_voice_actors = HashSet::new();
+
         // this was hell
         let (voice_actors, appears_in): (Vec<_>, Vec<_>) = character
             .media
@@ -490,7 +493,22 @@ impl From<character_info::CharacterInfoCharacter> for Character {
                             .into_iter()
                             .flatten()
                             .flatten()
-                            .filter_map(|role| role.voice_actor)
+                            .filter_map(|role| {
+                                let id = role
+                                    .voice_actor
+                                    .as_ref()
+                                    .and_then(|voice_actor| Some(voice_actor.id));
+
+                                if let Some(id) = id {
+                                    if existing_voice_actors.contains(&id) {
+                                        return None;
+                                    } else {
+                                        existing_voice_actors.insert(id);
+                                    }
+                                }
+
+                                role.voice_actor
+                            })
                             .map(CharacterVoiceActor::from),
                     );
 
