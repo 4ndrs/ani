@@ -1114,24 +1114,20 @@ fn print_character_info(character: &Character, cover_image: Option<DynamicImage>
     let day = character.date_of_birth.as_ref().and_then(|date| date.day);
     let month = character.date_of_birth.as_ref().and_then(|date| date.month);
 
-    let month: Option<&str> = if let Some(month) = month {
-        match month {
-            1 => Some("Jan"),
-            2 => Some("Feb"),
-            3 => Some("Mar"),
-            4 => Some("Apr"),
-            5 => Some("May"),
-            6 => Some("Jun"),
-            7 => Some("Jul"),
-            8 => Some("Aug"),
-            9 => Some("Sep"),
-            10 => Some("Oct"),
-            11 => Some("Nov"),
-            12 => Some("Dec"),
-            _ => None,
-        }
-    } else {
-        None
+    let month: Option<&str> = match month {
+        Some(1) => Some("Jan"),
+        Some(2) => Some("Feb"),
+        Some(3) => Some("Mar"),
+        Some(4) => Some("Apr"),
+        Some(5) => Some("May"),
+        Some(6) => Some("Jun"),
+        Some(7) => Some("Jul"),
+        Some(8) => Some("Aug"),
+        Some(9) => Some("Sep"),
+        Some(10) => Some("Oct"),
+        Some(11) => Some("Nov"),
+        Some(12) => Some("Dec"),
+        _ => None,
     };
 
     let birthday = match (day, month) {
