@@ -472,41 +472,43 @@ impl Clone for character_info::CharacterInfoCharacterMediaEdgesNode {
 impl From<character_info::CharacterInfoCharacter> for Character {
     fn from(character: character_info::CharacterInfoCharacter) -> Self {
         // this was hell
-        let appears_in: Vec<_> = character
-            .media
-            .iter()
-            .filter_map(|media| media.edges.as_ref())
-            .flatten()
-            .flatten()
-            .filter_map(|edge| edge.node.clone())
-            .map(CharacterAppearsIn::from)
-            .collect();
-
-        let voice_actors: Vec<_> = character
+        let (voice_actors, appears_in): (Vec<_>, Vec<_>) = character
             .media
             .into_iter()
             .filter_map(|media| media.edges)
             .flatten()
             .flatten()
-            .filter_map(|edge| edge.voice_actor_roles)
-            .flatten()
-            .flatten()
-            .filter_map(|role| role.voice_actor)
-            .map(CharacterVoiceActor::from)
-            .collect();
+            .fold(
+                (Vec::new(), Vec::new()),
+                |(mut voice_actors, mut appears_in), edge| {
+                    if let Some(node) = edge.node {
+                        appears_in.push(node.into());
+                    }
+
+                    voice_actors.extend(
+                        edge.voice_actor_roles
+                            .into_iter()
+                            .flatten()
+                            .flatten()
+                            .filter_map(|role| role.voice_actor)
+                            .into_iter()
+                            .map(CharacterVoiceActor::from),
+                    );
+
+                    (voice_actors, appears_in)
+                },
+            );
 
         Self {
+            appears_in,
+            voice_actors,
             id: character.id,
             age: character.age,
             name: character.name.map(|name| name.into()),
             image: character.image.map(|image| image.into()),
             gender: character.gender,
             description: character.description,
-            date_of_birth: character
-                .date_of_birth
-                .map(|date_of_birth| date_of_birth.into()),
-            appears_in,
-            voice_actors,
+            date_of_birth: character.date_of_birth.map(FuzzyDate::from),
         }
     }
 }
