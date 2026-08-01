@@ -569,10 +569,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Info { id, r#type } => {
             let client = reqwest::Client::new();
 
-            let anime = fetch_anime_info(&client, id).await?;
-            let cover_image = fetch_image(&client, anime.cover_url.as_deref()).await?;
+            match r#type {
+                InfoType::Anime => {
+                    let anime = fetch_anime_info(&client, id).await?;
+                    let cover_image = fetch_image(&client, anime.cover_url.as_deref()).await?;
 
-            print_anime_info(&anime, cover_image.as_ref())?;
+                    print_anime_info(&anime, cover_image.as_ref())?;
+                }
+                InfoType::Character => {
+                    let character = fetch_character_info(&client, id).await?;
+
+                    let image_url = character
+                        .image
+                        .as_ref()
+                        .and_then(|image| image.medium.as_deref());
+
+                    let cover_image = fetch_image(&client, image_url).await?;
+
+                    print_character_info(&character, cover_image);
+                }
+            }
         }
         Commands::CompletionSearch { query } => {
             dbg!(&query);
@@ -1035,13 +1051,13 @@ fn print_anime_info(
     Ok(())
 }
 
-fn print_character_info() {
+fn print_character_info(character: &Character, cover_image: Option<DynamicImage>) {
     // ┌──────────────────────┐  François Claire
     // │                      │  クレア・フランソワ
     // │                      │
-    // │                      │  Birthday: Mar 28
     // │                      │  Age: 15-17
     // │                      │  Gender: Female
+    // │                      │  Birthday: Mar 28
     // │                      │
     // │     COVER IMAGE      │  **Height:** 157 cm (5'2\")\n\nClaire François is a proud noble who
     // │                      │  in the original [Revolution] is the villainess who bullies the
@@ -1059,5 +1075,111 @@ fn print_character_info() {
     //   [158704] Watashi no Oshi wa Akuyaku Reijou
     //   [168999] Watashi no Oshi wa Akuyaku Reijou Rae to Claire ni Ichimon Ittou
 
-    todo!()
+    let last = character
+        .name
+        .as_ref()
+        .and_then(|name| name.last.as_deref());
+
+    let first = character
+        .name
+        .as_ref()
+        .and_then(|name| name.first.as_deref());
+
+    let native = character
+        .name
+        .as_ref()
+        .and_then(|name| name.native.as_deref());
+
+    match ((last, first), native) {
+        ((Some(last), Some(first)), Some(native)) => println!("{last} {first}\n{native}"),
+        ((Some(last), Some(first)), None) => println!("{last} {first}"),
+        ((Some(last), None), None) => println!("{last}"),
+        ((None, None), None) => println!("No Name"),
+        ((None, None), Some(native)) => println!("{native}"),
+        ((None, Some(first)), Some(native)) => println!("{first}\n{native}"),
+        ((Some(last), None), Some(native)) => println!("{last}\n{native}"),
+        ((None, Some(first)), None) => println!("{first}"),
+    }
+
+    println!(
+        "\nAge: {}",
+        character.age.as_deref().unwrap_or_else(|| "Unknown")
+    );
+
+    println!(
+        "Gender: {}",
+        character.gender.as_deref().unwrap_or_else(|| "Unknown")
+    );
+
+    let day = character.date_of_birth.as_ref().and_then(|date| date.day);
+    let month = character.date_of_birth.as_ref().and_then(|date| date.month);
+
+    let month: Option<&str> = if let Some(month) = month {
+        match month {
+            1 => Some("Jan"),
+            2 => Some("Feb"),
+            3 => Some("Mar"),
+            4 => Some("Apr"),
+            5 => Some("May"),
+            6 => Some("Jun"),
+            7 => Some("Jul"),
+            8 => Some("Aug"),
+            9 => Some("Sep"),
+            10 => Some("Oct"),
+            11 => Some("Nov"),
+            12 => Some("Dec"),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let birthday = match (day, month) {
+        (Some(day), Some(month)) => format!("{month} {day}"),
+        _ => "Unknown".to_owned(),
+    };
+
+    println!("Birthday: {birthday}");
+
+    if let Some(description) = character.description.as_deref() {
+        println!("\n{description}")
+    }
+
+    if !character.voice_actors.is_empty() {
+        println!("\nVoice");
+
+        for voice_actor in character.voice_actors.iter() {
+            let id = voice_actor.id;
+
+            let last = voice_actor
+                .name
+                .as_ref()
+                .and_then(|name| name.last.as_deref());
+
+            let first = voice_actor
+                .name
+                .as_ref()
+                .and_then(|name| name.first.as_deref());
+
+            let name: String = match (last, first) {
+                (Some(last), Some(first)) => format!("{last} {first}"),
+                (Some(last), None) => last.to_owned(),
+                (None, Some(first)) => first.to_owned(),
+                (None, None) => "No Name".to_owned(),
+            };
+
+            println!("  [{id}] {name}")
+        }
+    }
+
+    if !character.appears_in.is_empty() {
+        println!("\nAppears in");
+
+        for appears_in in character.appears_in.iter() {
+            let id = appears_in.id;
+            let title = appears_in.title.as_deref().unwrap_or_else(|| "No Title");
+
+            println!("  [{id}] {title}")
+        }
+    }
 }
