@@ -5,7 +5,7 @@ use std::{
 
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{generate, shells};
-use crossterm::{cursor, execute, terminal};
+use crossterm::{cursor, execute, style::Print, terminal};
 use graphql_client::{GraphQLQuery, Response};
 use image::DynamicImage;
 
@@ -582,11 +582,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let image_url = character
                         .image
                         .as_ref()
-                        .and_then(|image| image.medium.as_deref());
+                        .and_then(|image| image.large.as_deref());
 
                     let cover_image = fetch_image(&client, image_url).await?;
 
-                    print_character_info(&character, cover_image);
+                    print_character_info(&character, cover_image.as_ref())?;
                 }
             }
         }
@@ -868,6 +868,8 @@ fn print_wrapped_lines(
     Ok(())
 }
 
+const COVER_WIDTH: u32 = 27;
+
 fn print_anime_info(
     media: &Anime,
     cover: Option<&DynamicImage>,
@@ -895,8 +897,6 @@ fn print_anime_info(
     let (terminal_columns, terminal_rows) = terminal::size()?;
 
     if let Some(cover) = cover {
-        const COVER_WIDTH: u32 = 27;
-
         let cover_resized = viuer::resize(cover, Some(COVER_WIDTH), None);
 
         let (cover_columns, cover_rows) = (
@@ -1051,7 +1051,10 @@ fn print_anime_info(
     Ok(())
 }
 
-fn print_character_info(character: &Character, cover_image: Option<DynamicImage>) {
+fn print_character_info(
+    character: &Character,
+    cover_image: Option<&DynamicImage>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // ┌──────────────────────┐  François Claire
     // │                      │  クレア・フランソワ
     // │                      │
@@ -1075,6 +1078,58 @@ fn print_character_info(character: &Character, cover_image: Option<DynamicImage>
     //   [158704] Watashi no Oshi wa Akuyaku Reijou
     //   [168999] Watashi no Oshi wa Akuyaku Reijou Rae to Claire ni Ichimon Ittou
 
+    let mut stdout = stdout();
+    let mut shift_right = 0;
+    let mut row_below_image = 0;
+
+    let (terminal_columns, terminal_rows) = terminal::size()?;
+
+    if let Some(image) = cover_image {
+        let image_resized = viuer::resize(image, Some(COVER_WIDTH), None);
+
+        let (cover_columns, cover_rows) = (
+            u16::try_from(image_resized.width())?,
+            u16::try_from(image_resized.height().div_ceil(2))?,
+        );
+
+        let (_, current_row) = cursor::position()?;
+
+        let available_rows = terminal_rows.saturating_sub(current_row).saturating_sub(1);
+
+        let needs_scrolling = available_rows < cover_rows;
+
+        if needs_scrolling {
+            let rows_to_scroll = cover_rows - available_rows;
+
+            execute!(
+                stdout,
+                terminal::ScrollUp(rows_to_scroll),
+                cursor::MoveUp(rows_to_scroll)
+            )?;
+        }
+
+        let (_, current_row) = cursor::position()?;
+
+        let config = viuer::Config {
+            x: 1,
+            width: Some(COVER_WIDTH),
+            restore_cursor: true,
+            absolute_offset: false,
+            ..Default::default()
+        };
+
+        viuer::print(image, &config)?;
+
+        row_below_image = current_row.saturating_add(cover_rows);
+        shift_right = cover_columns + 3;
+    }
+
+    let space_available = usize::from(
+        terminal_columns
+            .saturating_sub(shift_right)
+            .saturating_sub(1),
+    );
+
     let last = character
         .name
         .as_ref()
@@ -1091,25 +1146,72 @@ fn print_character_info(character: &Character, cover_image: Option<DynamicImage>
         .and_then(|name| name.native.as_deref());
 
     match ((last, first), native) {
-        ((Some(last), Some(first)), Some(native)) => println!("{last} {first}\n{native}"),
-        ((Some(last), Some(first)), None) => println!("{last} {first}"),
-        ((Some(last), None), None) => println!("{last}"),
-        ((None, None), None) => println!("No Name"),
-        ((None, None), Some(native)) => println!("{native}"),
-        ((None, Some(first)), Some(native)) => println!("{first}\n{native}"),
-        ((Some(last), None), Some(native)) => println!("{last}\n{native}"),
-        ((None, Some(first)), None) => println!("{first}"),
+        ((Some(last), Some(first)), Some(native)) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{last} {first}\n")),
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{native}\n"))
+        )?,
+        ((Some(last), Some(first)), None) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{last} {first}\n"))
+        )?,
+        ((Some(last), None), None) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{last}\n"))
+        )?,
+        ((None, None), None) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print("No Name\n")
+        )?,
+        ((None, None), Some(native)) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{native}\n"))
+        )?,
+        ((None, Some(first)), Some(native)) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{first}\n")),
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{native}\n")),
+        )?,
+        ((Some(last), None), Some(native)) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{last}\n")),
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{native}\n")),
+        )?,
+        ((None, Some(first)), None) => execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("{first}\n"))
+        )?,
     }
 
-    println!(
-        "\nAge: {}",
-        character.age.as_deref().unwrap_or_else(|| "Unknown")
-    );
+    execute!(
+        stdout,
+        Print("\n"),
+        cursor::MoveToColumn(shift_right),
+        Print(format!(
+            "Age: {}\n",
+            character.age.as_deref().unwrap_or_else(|| "Unknown")
+        ))
+    )?;
 
-    println!(
-        "Gender: {}",
-        character.gender.as_deref().unwrap_or_else(|| "Unknown")
-    );
+    execute!(
+        stdout,
+        cursor::MoveToColumn(shift_right),
+        Print(format!(
+            "Gender: {}\n",
+            character.gender.as_deref().unwrap_or_else(|| "Unknown")
+        ))
+    )?;
 
     let day = character.date_of_birth.as_ref().and_then(|date| date.day);
     let month = character.date_of_birth.as_ref().and_then(|date| date.month);
@@ -1135,14 +1237,30 @@ fn print_character_info(character: &Character, cover_image: Option<DynamicImage>
         _ => "Unknown".to_owned(),
     };
 
-    println!("Birthday: {birthday}");
+    execute!(
+        stdout,
+        cursor::MoveToColumn(shift_right),
+        Print(format!("Birthday: {birthday}\n\n"))
+    )?;
 
     if let Some(description) = character.description.as_deref() {
-        println!("\n{description}")
+        let bold_regex = regex::Regex::new(r"\*\*")?;
+        let spoiler_regex = regex::Regex::new(r"~!.*!~")?;
+
+        let description = bold_regex.replace_all(description, "");
+        let description = spoiler_regex.replace_all(&description, "");
+
+        print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
+    }
+
+    let (_, current_row) = cursor::position()?;
+
+    if current_row < row_below_image {
+        execute!(stdout, cursor::MoveTo(0, row_below_image))?
     }
 
     if !character.voice_actors.is_empty() {
-        println!("\nVoice");
+        writeln!(stdout, "\nVoice")?;
 
         for voice_actor in character.voice_actors.iter() {
             let id = voice_actor.id;
@@ -1164,18 +1282,20 @@ fn print_character_info(character: &Character, cover_image: Option<DynamicImage>
                 (None, None) => "No Name".to_owned(),
             };
 
-            println!("  [{id}] {name}")
+            writeln!(stdout, "  [{id}] {name}")?
         }
     }
 
     if !character.appears_in.is_empty() {
-        println!("\nAppears in");
+        writeln!(stdout, "\nAppears in")?;
 
         for appears_in in character.appears_in.iter() {
             let id = appears_in.id;
             let title = appears_in.title.as_deref().unwrap_or_else(|| "No Title");
 
-            println!("  [{id}] {title}")
+            writeln!(stdout, "  [{id}] {title}")?
         }
     }
+
+    Ok(())
 }
