@@ -491,7 +491,6 @@ impl From<character_info::CharacterInfoCharacter> for Character {
                             .flatten()
                             .flatten()
                             .filter_map(|role| role.voice_actor)
-                            .into_iter()
                             .map(CharacterVoiceActor::from),
                     );
 
