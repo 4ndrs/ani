@@ -1244,10 +1244,14 @@ fn print_character_info(
     )?;
 
     if let Some(description) = character.description.as_deref() {
+        let link_regex = regex::Regex::new(r"\[([^\]]+)\]\([^)]+\)")?;
         let bold_regex = regex::Regex::new(r"\*\*")?;
+        let bold_regex2 = regex::Regex::new(r"__")?;
         let spoiler_regex = regex::Regex::new(r"~!.*!~")?;
 
-        let description = bold_regex.replace_all(description, "");
+        let description = link_regex.replace_all(description, "$1");
+        let description = bold_regex.replace_all(&description, "");
+        let description = bold_regex2.replace_all(&description, "");
         let description = spoiler_regex.replace_all(&description, "");
 
         print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
