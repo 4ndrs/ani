@@ -109,7 +109,6 @@ pub fn print_anime_info(
     match (romaji, native) {
         (Some(romaji), Some(native)) => {
             if native == romaji {
-                writeln!(stdout, "{native}")?;
                 print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
             } else {
                 print_wrapped_lines(&mut stdout, native, shift_right, space_available)?;
