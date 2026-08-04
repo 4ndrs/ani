@@ -1,8 +1,7 @@
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
-use clap_complete::{generate, shells};
 use image::DynamicImage;
 
-use super::completion::ANIME_INFO_ZSH_COMPLETION;
+use super::completion::generate_completions;
 use super::display::{print_anime_info, print_character_info};
 use super::models::Anime;
 
@@ -102,18 +101,8 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::GenerateZshCompletions => {
             let mut cmd = Cli::command();
-            let mut buffer: Vec<u8> = Vec::new();
 
-            let name = cmd.get_name().to_string();
-
-            generate(shells::Zsh, &mut cmd, name, &mut buffer);
-
-            let zsh_completion =
-                String::from_utf8(buffer)?.replace("anime id:_default", "anime id:_ani_info");
-
-            // FIXME: i think this is messing up the first execution of the anime completion query
-            // need to put the anime info completion before the last part of the script
-            let zsh_completion = format!("{}\n{}", zsh_completion, ANIME_INFO_ZSH_COMPLETION);
+            let zsh_completion = generate_completions(&mut cmd)?;
 
             println!("{zsh_completion}")
         }

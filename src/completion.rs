@@ -1,4 +1,8 @@
-pub const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
+use clap::Command;
+use clap_complete::{generate, shells};
+
+const ANIME_INFO_ZSH_COMPLETION: &str = r#"
+_ani_info() {
     # a previous completion call already produced and displayed a list
     # reuse it and begin selecting the items
     if [[ "${compstate[old_list]}" == "shown" ]]; then
@@ -42,5 +46,23 @@ pub const ANIME_INFO_ZSH_COMPLETION: &str = r#"_ani_info() {
     # first tab shows the list but doesn't modify the command line
     compstate[list]='list force'
     compstate[insert]=''
+}"#;
+
+pub fn generate_completions(cmd: &mut Command) -> Result<String, Box<dyn std::error::Error>> {
+    let mut buffer: Vec<u8> = Vec::new();
+
+    let name = cmd.get_name().to_string();
+
+    generate(shells::Zsh, cmd, name, &mut buffer);
+
+    let zsh_completion = String::from_utf8(buffer)?
+        // TODO need to find a better way to connect the completion search functions
+        .replacen("id:_default", "id:_ani_info", 1)
+        .replacen(
+            "#compdef ani",
+            &format!("#compdef ani\n{ANIME_INFO_ZSH_COMPLETION}"),
+            1,
+        );
+
+    Ok(zsh_completion)
 }
-"#;
