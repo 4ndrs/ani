@@ -296,49 +296,49 @@ pub fn print_character_info(
         .as_ref()
         .and_then(|name| name.native.as_deref());
 
-    match ((last, first), native) {
-        ((Some(last), Some(first)), Some(native)) => execute!(
+    match (last, first, native) {
+        (Some(last), Some(first), Some(native)) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{last} {first}\n")),
             cursor::MoveToColumn(shift_right),
             Print(format!("{native}\n"))
         )?,
-        ((Some(last), Some(first)), None) => execute!(
+        (Some(last), Some(first), None) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{last} {first}\n"))
         )?,
-        ((Some(last), None), None) => execute!(
+        (Some(last), None, None) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{last}\n"))
         )?,
-        ((None, None), None) => execute!(
+        (None, None, None) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print("No Name\n")
         )?,
-        ((None, None), Some(native)) => execute!(
+        (None, None, Some(native)) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{native}\n"))
         )?,
-        ((None, Some(first)), Some(native)) => execute!(
+        (None, Some(first), Some(native)) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{first}\n")),
             cursor::MoveToColumn(shift_right),
             Print(format!("{native}\n")),
         )?,
-        ((Some(last), None), Some(native)) => execute!(
+        (Some(last), None, Some(native)) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{last}\n")),
             cursor::MoveToColumn(shift_right),
             Print(format!("{native}\n")),
         )?,
-        ((None, Some(first)), None) => execute!(
+        (None, Some(first), None) => execute!(
             stdout,
             cursor::MoveToColumn(shift_right),
             Print(format!("{first}\n"))
