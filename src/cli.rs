@@ -2,7 +2,7 @@ use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use image::DynamicImage;
 
 use super::completion::generate_completions;
-use super::display::{print_anime_info, print_character_info};
+use super::display::{Style, print_anime_info, print_character_info};
 use super::models::Anime;
 
 use super::anilist::{
@@ -71,9 +71,15 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
             match r#type {
                 InfoType::Anime => {
                     let anime = fetch_anime_info(&client, id).await?;
-                    let cover_image = fetch_image(&client, anime.cover_url.as_deref()).await?;
 
-                    print_anime_info(&anime, cover_image.as_ref())?;
+                    let cover_url = anime
+                        .cover_image
+                        .as_ref()
+                        .and_then(|image| image.extra_large.as_deref());
+
+                    let cover_image = fetch_image(&client, cover_url).await?;
+
+                    print_anime_info(&anime, cover_image.as_ref(), Style::Large)?;
                 }
                 InfoType::Character => {
                     let character = fetch_character_info(&client, id).await?;
@@ -116,17 +122,19 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
 
             let items: Vec<(Anime, Option<DynamicImage>)> =
                 futures::future::join_all(results.items.into_iter().map(|anime| async {
-                    let cover = fetch_image(&client, anime.cover_url.as_deref())
-                        .await
-                        .ok()
-                        .flatten();
+                    let url = anime
+                        .cover_image
+                        .as_ref()
+                        .and_then(|image| image.medium.as_deref());
+
+                    let cover = fetch_image(&client, url).await.ok().flatten();
 
                     (anime, cover)
                 }))
                 .await;
 
             for (anime, cover) in items {
-                print_anime_info(&anime, cover.as_ref())?;
+                print_anime_info(&anime, cover.as_ref(), Style::Small)?;
 
                 println!("\n");
             }

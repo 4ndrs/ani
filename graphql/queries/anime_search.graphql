@@ -14,16 +14,11 @@ query AnimeSearch($page: Int!, $perPage: Int!, $query: String) {
         native
       }
       format
-      description
       season
       seasonYear
       episodes
-      averageScore
-      status
-      siteUrl
-      genres
       coverImage {
-        extraLarge
+        medium
       }
     }
   }

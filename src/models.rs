@@ -28,6 +28,29 @@ impl From<anime_search::AnimeSearchPageResultsTitle> for AnimeTitle {
     }
 }
 
+pub struct MediaCoverImage {
+    pub medium: Option<String>,
+    pub extra_large: Option<String>,
+}
+
+impl From<anime_info::AnimeInfoMediaCoverImage> for MediaCoverImage {
+    fn from(value: anime_info::AnimeInfoMediaCoverImage) -> Self {
+        Self {
+            medium: None,
+            extra_large: value.extra_large,
+        }
+    }
+}
+
+impl From<anime_search::AnimeSearchPageResultsCoverImage> for MediaCoverImage {
+    fn from(value: anime_search::AnimeSearchPageResultsCoverImage) -> Self {
+        Self {
+            medium: value.medium,
+            extra_large: None,
+        }
+    }
+}
+
 pub struct Anime {
     pub id: i64,
     pub title: Option<AnimeTitle>,
@@ -37,7 +60,7 @@ pub struct Anime {
     pub season: Option<MediaSeason>,
     pub episodes: Option<i64>,
     pub site_url: Option<String>,
-    pub cover_url: Option<String>,
+    pub cover_image: Option<MediaCoverImage>,
     pub season_year: Option<i64>,
     pub description: Option<String>,
     pub average_score: Option<i64>,
@@ -47,17 +70,17 @@ impl From<anime_info::AnimeInfoMedia> for Anime {
     fn from(anime: anime_info::AnimeInfoMedia) -> Self {
         Self {
             id: anime.id,
-            season_year: anime.season_year,
-            average_score: anime.average_score,
-            description: anime.description,
+            title: anime.title.map(AnimeTitle::from),
+            status: anime.status.map(MediaStatus::from),
+            season: anime.season.map(MediaSeason::from),
+            format: anime.format.map(MediaFormat::from),
+            genres: anime.genres.into_iter().flatten().collect(),
             site_url: anime.site_url,
             episodes: anime.episodes,
-            genres: anime.genres.into_iter().flatten().collect(),
-            status: anime.status.map(|status| status.into()),
-            season: anime.season.map(|season| season.into()),
-            format: anime.format.map(|format| format.into()),
-            title: anime.title.map(|title| title.into()),
-            cover_url: anime.cover_image.and_then(|cover| cover.extra_large),
+            season_year: anime.season_year,
+            description: anime.description,
+            cover_image: anime.cover_image.map(MediaCoverImage::from),
+            average_score: anime.average_score,
         }
     }
 }
@@ -66,17 +89,17 @@ impl From<anime_search::AnimeSearchPageResults> for Anime {
     fn from(anime: anime_search::AnimeSearchPageResults) -> Self {
         Self {
             id: anime.id,
-            season_year: anime.season_year,
-            average_score: anime.average_score,
-            description: anime.description,
-            site_url: anime.site_url,
+            genres: None,
+            status: None,
+            site_url: None,
+            description: None,
+            average_score: None,
             episodes: anime.episodes,
-            genres: anime.genres.into_iter().flatten().collect(),
-            status: anime.status.map(|status| status.into()),
+            season_year: anime.season_year,
+            title: anime.title.map(|title| title.into()),
             season: anime.season.map(|season| season.into()),
             format: anime.format.map(|format| format.into()),
-            title: anime.title.map(|title| title.into()),
-            cover_url: anime.cover_image.and_then(|cover| cover.extra_large),
+            cover_image: anime.cover_image.map(MediaCoverImage::from),
         }
     }
 }
@@ -234,19 +257,6 @@ impl From<anime_info::MediaStatus> for MediaStatus {
     }
 }
 
-impl From<anime_search::MediaStatus> for MediaStatus {
-    fn from(value: anime_search::MediaStatus) -> Self {
-        match value {
-            anime_search::MediaStatus::HIATUS => Self::HIATUS,
-            anime_search::MediaStatus::FINISHED => Self::FINISHED,
-            anime_search::MediaStatus::RELEASING => Self::RELEASING,
-            anime_search::MediaStatus::CANCELLED => Self::CANCELLED,
-            anime_search::MediaStatus::Other(other) => Self::Other(other),
-            anime_search::MediaStatus::NOT_YET_RELEASED => Self::NotYetReleased,
-        }
-    }
-}
-
 pub struct Name {
     pub last: Option<String>,
     pub first: Option<String>,
@@ -291,12 +301,12 @@ impl From<character_info::CharacterInfoCharacterDateOfBirth> for FuzzyDate {
     }
 }
 
-pub struct CoverUrl {
+pub struct CharacterImage {
     pub large: Option<String>,
     pub medium: Option<String>,
 }
 
-impl From<character_info::CharacterInfoCharacterImage> for CoverUrl {
+impl From<character_info::CharacterInfoCharacterImage> for CharacterImage {
     fn from(value: character_info::CharacterInfoCharacterImage) -> Self {
         Self {
             large: value.large,
@@ -341,7 +351,7 @@ pub struct Character {
     pub id: i64,
     pub age: Option<String>,
     pub name: Option<Name>,
-    pub image: Option<CoverUrl>,
+    pub image: Option<CharacterImage>,
     pub gender: Option<String>,
     pub appears_in: Vec<CharacterAppearsIn>,
     pub description: Option<String>,
@@ -401,7 +411,7 @@ impl From<character_info::CharacterInfoCharacter> for Character {
             id: character.id,
             age: character.age,
             name: character.name.map(Name::from),
-            image: character.image.map(CoverUrl::from),
+            image: character.image.map(CharacterImage::from),
             gender: character.gender,
             description: character.description,
             date_of_birth: character.date_of_birth.map(FuzzyDate::from),

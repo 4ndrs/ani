@@ -4,8 +4,6 @@ use std::io::{Write, stdout};
 
 use super::models::{Anime, Character};
 
-const COVER_WIDTH: u32 = 27;
-
 fn print_wrapped_lines(
     stdout: &mut std::io::Stdout,
     text: &str,
@@ -22,10 +20,27 @@ fn print_wrapped_lines(
     Ok(())
 }
 
+#[derive(PartialEq)]
+pub enum Style {
+    Large,
+    Small,
+}
+
+impl Style {
+    fn cover_width(&self) -> u32 {
+        match self {
+            Self::Large => 27,
+            Self::Small => 10,
+        }
+    }
+}
+
 pub fn print_anime_info(
     media: &Anime,
     cover: Option<&DynamicImage>,
+    style: Style,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Large style variant:
     // ┌──────────────────────┐  Made in Abyss
     // │                      │  メイドインアビス
     // │                      │
@@ -41,7 +56,15 @@ pub fn print_anime_info(
     // │                      │  AniList: https://anilist.co/anime/97986
     // │                      │
     // └──────────────────────┘
-
+    //
+    // Small style variant:
+    // ┌───────┐  [97986] Made in Abyss
+    // │       │  TV · 13 episodes · Summer 2017
+    // │       │
+    // │ cover │
+    // │       │
+    // │       │
+    // └───────┘
     let mut stdout = stdout();
     let mut shift_right = 0;
     let mut row_below_image = 0;
@@ -49,7 +72,7 @@ pub fn print_anime_info(
     let (terminal_columns, terminal_rows) = terminal::size()?;
 
     if let Some(cover) = cover {
-        let cover_resized = viuer::resize(cover, Some(COVER_WIDTH), None);
+        let cover_resized = viuer::resize(cover, Some(style.cover_width()), None);
 
         let (cover_columns, cover_rows) = (
             u16::try_from(cover_resized.width())?,
@@ -78,7 +101,7 @@ pub fn print_anime_info(
 
         let config = viuer::Config {
             x: 1,
-            width: Some(COVER_WIDTH),
+            width: Some(style.cover_width()),
             restore_cursor: true,
             absolute_offset: false,
             ..Default::default()
@@ -106,28 +129,43 @@ pub fn print_anime_info(
         .as_ref()
         .and_then(|title| title.native.as_deref());
 
-    match (romaji, native) {
-        (Some(romaji), Some(native)) => {
-            if native == romaji {
-                print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
-            } else {
-                print_wrapped_lines(&mut stdout, native, shift_right, space_available)?;
-                print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?
+    match style {
+        Style::Small => {
+            let id = media.id;
+            let title = romaji.unwrap_or_else(|| native.unwrap_or_else(|| "No Title"));
+
+            print_wrapped_lines(
+                &mut stdout,
+                &format!("[{id}] {title}"),
+                shift_right,
+                space_available,
+            )?;
+        }
+        Style::Large => {
+            match (romaji, native) {
+                (Some(romaji), Some(native)) => {
+                    if native == romaji {
+                        print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
+                    } else {
+                        print_wrapped_lines(&mut stdout, native, shift_right, space_available)?;
+                        print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?
+                    }
+                }
+                (Some(romaji), None) => {
+                    print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?
+                }
+                (None, Some(native)) => {
+                    print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
+                }
+                (None, None) => {
+                    execute!(stdout, cursor::MoveToColumn(shift_right))?;
+                    writeln!(stdout, "No Title")?
+                }
             }
-        }
-        (Some(romaji), None) => {
-            print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?
-        }
-        (None, Some(native)) => {
-            print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
-        }
-        (None, None) => {
-            execute!(stdout, cursor::MoveToColumn(shift_right))?;
-            writeln!(stdout, "No Title")?
+
+            writeln!(stdout)?;
         }
     }
-
-    writeln!(stdout)?;
 
     let mut details = Vec::new();
 
@@ -141,8 +179,17 @@ pub fn print_anime_info(
         details.push(format!("{episodes} {label}"));
     }
 
-    if let Some(season_year) = media.season_year {
-        details.push(season_year.to_string());
+    match style {
+        Style::Small => {
+            if let (Some(season), Some(year)) = (media.season_year, &media.season) {
+                details.push(format!("{season} {year}"));
+            }
+        }
+        Style::Large => {
+            if let Some(season_year) = media.season_year {
+                details.push(season_year.to_string());
+            }
+        }
     }
 
     if !details.is_empty() {
@@ -150,47 +197,49 @@ pub fn print_anime_info(
         writeln!(stdout, "{}", details.join(" · "))?
     }
 
-    if let (Some(season), Some(year)) = (&media.season, media.season_year) {
-        execute!(stdout, cursor::MoveToColumn(shift_right))?;
-        writeln!(stdout, "{season} {year}")?;
-    }
+    if style == Style::Large {
+        if let (Some(season), Some(year)) = (&media.season, media.season_year) {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+            writeln!(stdout, "{season} {year}")?;
+        }
 
-    if let Some(score) = media.average_score {
-        execute!(stdout, cursor::MoveToColumn(shift_right))?;
-        writeln!(stdout, "Score: {score}/100")?;
-    }
+        if let Some(score) = media.average_score {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+            writeln!(stdout, "Score: {score}/100")?;
+        }
 
-    if let Some(status) = &media.status {
-        execute!(stdout, cursor::MoveToColumn(shift_right))?;
-        writeln!(stdout, "Status: {status}")?
-    }
+        if let Some(status) = &media.status {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+            writeln!(stdout, "Status: {status}")?
+        }
 
-    if let Some(genres) = &media.genres {
-        let genres: Vec<&str> = genres.iter().map(String::as_str).collect();
+        if let Some(genres) = &media.genres {
+            let genres: Vec<&str> = genres.iter().map(String::as_str).collect();
 
-        if !genres.is_empty() {
-            let genres = format!("Genres: {}", genres.join(" · "));
+            if !genres.is_empty() {
+                let genres = format!("Genres: {}", genres.join(" · "));
 
-            print_wrapped_lines(&mut stdout, &genres, shift_right, space_available)?
-        };
-    }
-
-    writeln!(stdout)?;
-
-    if let Some(description) = &media.description {
-        let description: String = scraper::Html::parse_fragment(description)
-            .root_element()
-            .text()
-            .collect();
-
-        print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
+                print_wrapped_lines(&mut stdout, &genres, shift_right, space_available)?
+            };
+        }
 
         writeln!(stdout)?;
-    }
 
-    if let Some(site_url) = &media.site_url {
-        execute!(stdout, cursor::MoveToColumn(shift_right))?;
-        writeln!(stdout, "AniList: {site_url}")?;
+        if let Some(description) = &media.description {
+            let description: String = scraper::Html::parse_fragment(description)
+                .root_element()
+                .text()
+                .collect();
+
+            print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
+
+            writeln!(stdout)?;
+        }
+
+        if let Some(site_url) = &media.site_url {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+            writeln!(stdout, "AniList: {site_url}")?;
+        }
     }
 
     let (_, current_row) = cursor::position()?;
@@ -236,7 +285,7 @@ pub fn print_character_info(
     let (terminal_columns, terminal_rows) = terminal::size()?;
 
     if let Some(image) = cover_image {
-        let image_resized = viuer::resize(image, Some(COVER_WIDTH), None);
+        let image_resized = viuer::resize(image, Some(Style::Large.cover_width()), None);
 
         let (cover_columns, cover_rows) = (
             u16::try_from(image_resized.width())?,
@@ -263,7 +312,7 @@ pub fn print_character_info(
 
         let config = viuer::Config {
             x: 1,
-            width: Some(COVER_WIDTH),
+            width: Some(Style::Large.cover_width()),
             restore_cursor: true,
             absolute_offset: false,
             ..Default::default()
