@@ -180,7 +180,7 @@ pub fn print_anime_info(
 
     match style {
         Style::Small => {
-            if let (Some(season), Some(year)) = (media.season_year, &media.season) {
+            if let (Some(year), Some(season)) = (media.season_year, &media.season) {
                 details.push(format!("{season} {year}"));
             }
         }
