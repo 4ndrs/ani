@@ -20,14 +20,14 @@ fn print_wrapped_lines(
     Ok(())
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum Style {
     Large,
     Small,
 }
 
 impl Style {
-    fn cover_width(&self) -> u32 {
+    fn cover_width(self) -> u32 {
         match self {
             Self::Large => 27,
             Self::Small => 10,
