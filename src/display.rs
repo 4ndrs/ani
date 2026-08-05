@@ -144,11 +144,10 @@ pub fn print_anime_info(
         Style::Large => {
             match (romaji, native) {
                 (Some(romaji), Some(native)) => {
-                    if native == romaji {
+                    print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?;
+
+                    if native != romaji {
                         print_wrapped_lines(&mut stdout, native, shift_right, space_available)?
-                    } else {
-                        print_wrapped_lines(&mut stdout, romaji, shift_right, space_available)?;
-                        print_wrapped_lines(&mut stdout, native, shift_right, space_available)?;
                     }
                 }
                 (Some(romaji), None) => {
