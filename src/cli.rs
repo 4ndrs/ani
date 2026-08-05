@@ -136,7 +136,7 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
             for (anime, cover) in items {
                 print_anime_info(&anime, cover.as_ref(), Style::Small)?;
 
-                println!("\n");
+                println!();
             }
 
             if results.has_next_page {
