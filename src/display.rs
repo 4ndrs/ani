@@ -132,7 +132,7 @@ pub fn print_anime_info(
     match style {
         Style::Small => {
             let id = media.id;
-            let title = romaji.unwrap_or_else(|| native.unwrap_or_else(|| "No Title"));
+            let title = romaji.or(romaji).unwrap_or("No Title");
 
             print_wrapped_lines(
                 &mut stdout,
