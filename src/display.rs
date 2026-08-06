@@ -253,7 +253,9 @@ pub fn print_anime_info(
 pub fn print_character_info(
     character: &Character,
     cover_image: Option<&DynamicImage>,
+    style: Style,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Large style variant:
     // ┌──────────────────────┐  François Claire
     // │                      │  クレア・フランソワ
     // │                      │
@@ -276,6 +278,15 @@ pub fn print_character_info(
     // Appears in
     //   [158704] Watashi no Oshi wa Akuyaku Reijou
     //   [168999] Watashi no Oshi wa Akuyaku Reijou Rae to Claire ni Ichimon Ittou
+    //
+    // Small style variant:
+    // ┌───────┐  [149900] François Claire
+    // │       │
+    // │       │  [122695] Nanami Karin (VA)
+    // │ cover │
+    // │       │  [158704] Watashi no Oshi wa Akuyaku Reijou.
+    // │       │  +1 more appearance
+    // └───────┘
 
     let mut stdout = stdout();
     let mut shift_right = 0;
@@ -284,7 +295,7 @@ pub fn print_character_info(
     let (terminal_columns, terminal_rows) = terminal::size()?;
 
     if let Some(image) = cover_image {
-        let image_resized = viuer::resize(image, Some(Style::Large.cover_width()), None);
+        let image_resized = viuer::resize(image, Some(style.cover_width()), None);
 
         let (cover_columns, cover_rows) = (
             u16::try_from(image_resized.width())?,
@@ -311,7 +322,7 @@ pub fn print_character_info(
 
         let config = viuer::Config {
             x: 1,
-            width: Some(Style::Large.cover_width()),
+            width: Some(style.cover_width()),
             restore_cursor: true,
             absolute_offset: false,
             ..Default::default()
@@ -329,6 +340,8 @@ pub fn print_character_info(
             .saturating_sub(1),
     );
 
+    let id = character.id;
+
     let last = character
         .name
         .as_ref()
@@ -345,160 +358,299 @@ pub fn print_character_info(
         .and_then(|name| name.native.as_deref());
 
     match (last, first, native) {
-        (Some(last), Some(first), Some(native)) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{last} {first}\n")),
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{native}\n"))
-        )?,
-        (Some(last), Some(first), None) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{last} {first}\n"))
-        )?,
-        (Some(last), None, None) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{last}\n"))
-        )?,
-        (None, None, None) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print("No Name\n")
-        )?,
-        (None, None, Some(native)) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{native}\n"))
-        )?,
-        (None, Some(first), Some(native)) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{first}\n")),
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{native}\n")),
-        )?,
-        (Some(last), None, Some(native)) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{last}\n")),
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{native}\n")),
-        )?,
-        (None, Some(first), None) => execute!(
-            stdout,
-            cursor::MoveToColumn(shift_right),
-            Print(format!("{first}\n"))
-        )?,
+        (Some(last), Some(first), Some(native)) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{last} {first}\n")),)?;
+
+            if style == Style::Large {
+                execute!(
+                    stdout,
+                    cursor::MoveToColumn(shift_right),
+                    Print(format!("{native}\n"))
+                )?
+            }
+        }
+        (Some(last), Some(first), None) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{last} {first}\n")))?
+        }
+        (Some(last), None, None) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{last}\n")))?
+        }
+        (None, None, None) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print("No Name\n"))?
+        }
+        (None, None, Some(native)) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{native}\n")))?
+        }
+        (None, Some(first), Some(native)) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right))?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{first}\n")))?;
+
+            if style == Style::Large {
+                execute!(
+                    stdout,
+                    cursor::MoveToColumn(shift_right),
+                    Print(format!("{native}\n"))
+                )?
+            }
+        }
+        (Some(last), None, Some(native)) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right),)?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{last}\n")))?;
+
+            if style == Style::Large {
+                execute!(
+                    stdout,
+                    cursor::MoveToColumn(shift_right),
+                    Print(format!("{native}\n"))
+                )?
+            }
+        }
+        (None, Some(first), None) => {
+            execute!(stdout, cursor::MoveToColumn(shift_right),)?;
+
+            if style == Style::Small {
+                execute!(stdout, Print(format!("[{id}] ")))?;
+            }
+
+            execute!(stdout, Print(format!("{first}\n")))?
+        }
     }
 
-    execute!(
-        stdout,
-        Print("\n"),
-        cursor::MoveToColumn(shift_right),
-        Print(format!(
-            "Age: {}\n",
-            character.age.as_deref().unwrap_or_else(|| "Unknown")
-        ))
-    )?;
+    if style == Style::Large {
+        execute!(
+            stdout,
+            Print("\n"),
+            cursor::MoveToColumn(shift_right),
+            Print(format!(
+                "Age: {}\n",
+                character.age.as_deref().unwrap_or_else(|| "Unknown")
+            ))
+        )?;
 
-    execute!(
-        stdout,
-        cursor::MoveToColumn(shift_right),
-        Print(format!(
-            "Gender: {}\n",
-            character.gender.as_deref().unwrap_or_else(|| "Unknown")
-        ))
-    )?;
+        execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!(
+                "Gender: {}\n",
+                character.gender.as_deref().unwrap_or_else(|| "Unknown")
+            ))
+        )?;
 
-    let day = character.date_of_birth.as_ref().and_then(|date| date.day);
-    let month = character.date_of_birth.as_ref().and_then(|date| date.month);
+        let day = character.date_of_birth.as_ref().and_then(|date| date.day);
+        let month = character.date_of_birth.as_ref().and_then(|date| date.month);
 
-    let month: Option<&str> = match month {
-        Some(1) => Some("Jan"),
-        Some(2) => Some("Feb"),
-        Some(3) => Some("Mar"),
-        Some(4) => Some("Apr"),
-        Some(5) => Some("May"),
-        Some(6) => Some("Jun"),
-        Some(7) => Some("Jul"),
-        Some(8) => Some("Aug"),
-        Some(9) => Some("Sep"),
-        Some(10) => Some("Oct"),
-        Some(11) => Some("Nov"),
-        Some(12) => Some("Dec"),
-        _ => None,
-    };
+        let month: Option<&str> = match month {
+            Some(1) => Some("Jan"),
+            Some(2) => Some("Feb"),
+            Some(3) => Some("Mar"),
+            Some(4) => Some("Apr"),
+            Some(5) => Some("May"),
+            Some(6) => Some("Jun"),
+            Some(7) => Some("Jul"),
+            Some(8) => Some("Aug"),
+            Some(9) => Some("Sep"),
+            Some(10) => Some("Oct"),
+            Some(11) => Some("Nov"),
+            Some(12) => Some("Dec"),
+            _ => None,
+        };
 
-    let birthday = match (day, month) {
-        (Some(day), Some(month)) => format!("{month} {day}"),
-        _ => "Unknown".to_owned(),
-    };
+        let birthday = match (day, month) {
+            (Some(day), Some(month)) => format!("{month} {day}"),
+            _ => "Unknown".to_owned(),
+        };
 
-    execute!(
-        stdout,
-        cursor::MoveToColumn(shift_right),
-        Print(format!("Birthday: {birthday}\n\n"))
-    )?;
+        execute!(
+            stdout,
+            cursor::MoveToColumn(shift_right),
+            Print(format!("Birthday: {birthday}\n\n"))
+        )?;
 
-    if let Some(description) = character.description.as_deref() {
-        // FIXME: need to use a markdown parser + fix custom anilist tags
-        // nice playground id: 126156
-        let link_regex = regex::Regex::new(r"\[([^\]]+)\]\([^)]+\)")?;
-        let bold_regex = regex::Regex::new(r"\*\*")?;
-        let bold_regex2 = regex::Regex::new(r"__")?;
-        let spoiler_regex = regex::Regex::new(r"~!.*!~")?;
+        if let Some(description) = character.description.as_deref() {
+            // FIXME: need to use a markdown parser + fix custom anilist tags
+            // nice playground id: 126156
+            let link_regex = regex::Regex::new(r"\[([^\]]+)\]\([^)]+\)")?;
+            let bold_regex = regex::Regex::new(r"\*\*")?;
+            let bold_regex2 = regex::Regex::new(r"__")?;
+            let spoiler_regex = regex::Regex::new(r"~!.*!~")?;
 
-        let description = link_regex.replace_all(description, "$1");
-        let description = bold_regex.replace_all(&description, "");
-        let description = bold_regex2.replace_all(&description, "");
-        let description = spoiler_regex.replace_all(&description, "");
+            let description = link_regex.replace_all(description, "$1");
+            let description = bold_regex.replace_all(&description, "");
+            let description = bold_regex2.replace_all(&description, "");
+            let description = spoiler_regex.replace_all(&description, "");
 
-        print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
-    }
+            print_wrapped_lines(&mut stdout, &description, shift_right, space_available)?;
+        }
 
-    let (_, current_row) = cursor::position()?;
+        let (_, current_row) = cursor::position()?;
 
-    if current_row < row_below_image {
-        execute!(stdout, cursor::MoveTo(0, row_below_image))?
+        if current_row < row_below_image {
+            execute!(stdout, cursor::MoveTo(0, row_below_image))?
+        }
     }
 
     if !character.voice_actors.is_empty() {
-        writeln!(stdout, "\nVoice")?;
+        match style {
+            Style::Small => {
+                let total = character.voice_actors.len();
+                let voice_actor = &character.voice_actors[0];
 
-        for voice_actor in character.voice_actors.iter() {
-            let id = voice_actor.id;
+                let id = voice_actor.id;
 
-            let last = voice_actor
-                .name
-                .as_ref()
-                .and_then(|name| name.last.as_deref());
+                let last = voice_actor
+                    .name
+                    .as_ref()
+                    .and_then(|name| name.last.as_deref());
 
-            let first = voice_actor
-                .name
-                .as_ref()
-                .and_then(|name| name.first.as_deref());
+                let first = voice_actor
+                    .name
+                    .as_ref()
+                    .and_then(|name| name.first.as_deref());
 
-            let name: String = match (last, first) {
-                (Some(last), Some(first)) => format!("{last} {first}"),
-                (Some(last), None) => last.to_owned(),
-                (None, Some(first)) => first.to_owned(),
-                (None, None) => "No Name".to_owned(),
-            };
+                let name: String = match (last, first) {
+                    (Some(last), Some(first)) => format!("{last} {first}"),
+                    (Some(last), None) => last.to_owned(),
+                    (None, Some(first)) => first.to_owned(),
+                    (None, None) => "No Name".to_owned(),
+                };
 
-            writeln!(stdout, "  [{id}] {name}")?
+                execute!(
+                    stdout,
+                    Print("\n"),
+                    cursor::MoveToColumn(shift_right),
+                    Print(format!("[{id}] {name} (VA)\n"))
+                )?;
+
+                if total > 1 {
+                    let total = total - 1;
+                    let actor = if total > 1 { "actors" } else { "actor" };
+
+                    execute!(
+                        stdout,
+                        cursor::MoveToColumn(shift_right),
+                        Print(format!("+{total} more voice {actor}\n"))
+                    )?;
+                }
+            }
+            Style::Large => {
+                writeln!(stdout, "\nVoice")?;
+
+                for voice_actor in character.voice_actors.iter() {
+                    let id = voice_actor.id;
+
+                    let last = voice_actor
+                        .name
+                        .as_ref()
+                        .and_then(|name| name.last.as_deref());
+
+                    let first = voice_actor
+                        .name
+                        .as_ref()
+                        .and_then(|name| name.first.as_deref());
+
+                    let name: String = match (last, first) {
+                        (Some(last), Some(first)) => format!("{last} {first}"),
+                        (Some(last), None) => last.to_owned(),
+                        (None, Some(first)) => first.to_owned(),
+                        (None, None) => "No Name".to_owned(),
+                    };
+
+                    writeln!(stdout, "  [{id}] {name}")?
+                }
+            }
         }
     }
 
     if !character.appears_in.is_empty() {
-        writeln!(stdout, "\nAppears in")?;
+        match style {
+            Style::Small => {
+                let total = character.appears_in.len();
+                let appears_in = &character.appears_in[0];
 
-        for appears_in in character.appears_in.iter() {
-            let id = appears_in.id;
-            let title = appears_in.title.as_deref().unwrap_or_else(|| "No Title");
+                let id = appears_in.id;
+                let title = appears_in.title.as_deref().unwrap_or("No Title");
 
-            writeln!(stdout, "  [{id}] {title}")?
+                execute!(
+                    stdout,
+                    Print("\n"),
+                    cursor::MoveToColumn(shift_right),
+                    Print(format!("[{id}] {title}\n"))
+                )?;
+
+                if total > 1 {
+                    let total = total - 1;
+                    let appearance = if total > 1 {
+                        "appearances"
+                    } else {
+                        "appearance"
+                    };
+
+                    execute!(
+                        stdout,
+                        cursor::MoveToColumn(shift_right),
+                        Print(format!("+{total} more {appearance}\n"))
+                    )?;
+                }
+            }
+            Style::Large => {
+                writeln!(stdout, "\nAppears in")?;
+
+                for appears_in in character.appears_in.iter() {
+                    let id = appears_in.id;
+                    let title = appears_in.title.as_deref().unwrap_or("No Title");
+
+                    writeln!(stdout, "  [{id}] {title}")?
+                }
+            }
+        }
+    }
+
+    if style == Style::Small {
+        // this needs to be done at the end if small
+        let (_, current_row) = cursor::position()?;
+
+        if current_row < row_below_image {
+            execute!(stdout, cursor::MoveTo(0, row_below_image))?
         }
     }
 

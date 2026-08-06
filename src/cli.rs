@@ -30,6 +30,9 @@ enum InfoType {
 enum Commands {
     /// Show information about an anime or character
     Info {
+        // the completion function injection is not super great right now
+        // every time the following help message gets updated we must update
+        // the injection of the completion search function in completion.rs
         /// The AniList id
         id: i64,
         /// The type of information to retrieve from AniList
@@ -91,7 +94,7 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
 
                     let cover_image = fetch_image(&client, image_url).await?;
 
-                    print_character_info(&character, cover_image.as_ref())?;
+                    print_character_info(&character, cover_image.as_ref(), Style::Large)?;
                 }
             }
         }
