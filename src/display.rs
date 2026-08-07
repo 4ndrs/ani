@@ -281,11 +281,11 @@ pub fn print_character_info(
     //
     // Small style variant:
     // ┌───────┐  [149900] François Claire
-    // │       │
     // │       │  [122695] Nanami Karin (VA)
-    // │ cover │
     // │       │  [158704] Watashi no Oshi wa Akuyaku Reijou.
-    // │       │  +1 more appearance
+    // │ cover │  +1 more appearance
+    // │       │
+    // │       │
     // └───────┘
 
     let mut stdout = stdout();
@@ -556,7 +556,6 @@ pub fn print_character_info(
 
                 execute!(
                     stdout,
-                    Print("\n"),
                     cursor::MoveToColumn(shift_right),
                     Print(format!("[{id}] {name} (VA)\n"))
                 )?;
@@ -612,7 +611,6 @@ pub fn print_character_info(
 
                 execute!(
                     stdout,
-                    Print("\n"),
                     cursor::MoveToColumn(shift_right),
                     Print(format!("[{id}] {title}\n"))
                 )?;
