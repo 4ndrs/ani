@@ -1,6 +1,6 @@
 query AnimeCharacters($page: Int!, $perPage: Int!, $animeId: Int!) {
   Media(id: $animeId) {
-    characters(page: $page, perPage: $perPage) {
+    characters(page: $page, perPage: $perPage, sort: [ROLE, RELEVANCE, ID]) {
       pageInfo {
         total
         lastPage
