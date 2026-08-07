@@ -3,11 +3,11 @@ use image::DynamicImage;
 
 use super::completion::generate_completions;
 use super::display::{Style, print_anime_info, print_character_info};
-use super::models::Anime;
+use super::models::{Anime, Character};
 
 use super::anilist::{
-    fetch_anime_completion_search, fetch_anime_info, fetch_anime_search, fetch_character_info,
-    fetch_image,
+    fetch_anime_characters, fetch_anime_completion_search, fetch_anime_info, fetch_anime_search,
+    fetch_character_info, fetch_image,
 };
 
 #[derive(Parser, Debug)]
@@ -57,10 +57,16 @@ enum Commands {
     CompletionSearch { query: String },
     /// Generate zsh completions and print them to the screen
     GenerateZshCompletions,
-    /// Test some stuff
-    Test {
-        #[arg(long, short, ignore_case = true, default_value = "anime")]
-        r#type: InfoType,
+    /// List characters from an anime
+    Characters {
+        /// The AniList id of the anime
+        id: i64,
+        #[arg(long, short = 'p', default_value = "1")]
+        /// The search page number
+        page: i64,
+        /// How many items to show per page
+        #[arg(long, short = 'x', default_value = "8")]
+        per_page: i64,
     },
 }
 
@@ -146,8 +152,32 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
                 println!("next page is available")
             }
         }
-        Commands::Test { r#type } => {
-            dbg!(r#type);
+        Commands::Characters { id, page, per_page } => {
+            let client = reqwest::Client::new();
+            let results = fetch_anime_characters(&client, id, page, per_page).await?;
+
+            let items: Vec<(Character, Option<DynamicImage>)> =
+                futures::future::join_all(results.items.into_iter().map(|character| async {
+                    let url = character
+                        .image
+                        .as_ref()
+                        .and_then(|image| image.medium.as_deref());
+
+                    let cover = fetch_image(&client, url).await.ok().flatten();
+
+                    (character, cover)
+                }))
+                .await;
+
+            for (character, cover) in items {
+                print_character_info(&character, cover.as_ref(), Style::Small)?;
+
+                println!();
+            }
+
+            if results.has_next_page {
+                println!("next page is available")
+            }
         }
     }
 

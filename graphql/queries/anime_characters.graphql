@@ -1,0 +1,34 @@
+query AnimeCharacters($page: Int!, $perPage: Int!, $animeId: Int!) {
+  Media(id: $animeId) {
+    characters(page: $page, perPage: $perPage) {
+      pageInfo {
+        total
+        lastPage
+        hasNextPage
+      }
+
+      edges {
+        voiceActorRoles(sort: [RELEVANCE, ID], language: JAPANESE) {
+          voiceActor {
+            id
+            name {
+              first
+              last
+            }
+          }
+        }
+        node {
+          id
+          name {
+            first
+            last
+            native
+          }
+          image {
+            medium
+          }
+        }
+      }
+    }
+  }
+}

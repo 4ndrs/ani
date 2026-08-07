@@ -36,6 +36,14 @@ struct AnimeCompletionSearch;
 )]
 pub struct AnimeSearch;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "graphql/schema.json",
+    query_path = "graphql/queries/anime_characters.graphql",
+    response_derives = "Debug"
+)]
+pub struct AnimeCharacters;
+
 const ANILIST_GRAPHQL_URL: &str = "https://graphql.anilist.co/";
 
 pub async fn fetch_image(
@@ -242,4 +250,69 @@ pub async fn fetch_character_info(
         .ok_or_else(|| Error::other("response contained no character"))?;
 
     Ok(character.into())
+}
+
+pub struct AnimeCharactersResults {
+    pub has_next_page: bool,
+    pub items: Vec<Character>,
+}
+
+pub async fn fetch_anime_characters(
+    client: &reqwest::Client,
+    anime_id: i64,
+    page: i64,
+    per_page: i64,
+) -> Result<AnimeCharactersResults, Box<dyn std::error::Error>> {
+    let variables = anime_characters::Variables {
+        page,
+        anime_id,
+        per_page,
+    };
+
+    let request_body = AnimeCharacters::build_query(variables);
+
+    let response: Response<anime_characters::ResponseData> = client
+        .post(ANILIST_GRAPHQL_URL)
+        .json(&request_body)
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    if let Some(errors) = response.errors {
+        let messages = errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        return Err(Error::other(format!("GraphQL error: {messages}")).into());
+    }
+
+    let page = response
+        .data
+        .ok_or_else(|| "response contained no data")?
+        .media
+        .ok_or_else(|| "response contained no media")?
+        .characters
+        .ok_or_else(|| "response contained no characters")?;
+
+    let has_next_page = page
+        .page_info
+        .ok_or_else(|| "response contained no page info")?
+        .has_next_page
+        .unwrap_or_default();
+
+    let items = page
+        .edges
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|edge| Some((edge.node?, edge.voice_actor_roles).into()))
+        .collect();
+
+    Ok(AnimeCharactersResults {
+        items,
+        has_next_page,
+    })
 }

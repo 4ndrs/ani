@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use super::anilist::{anime_info, anime_search, character_info};
+use super::anilist::{anime_characters, anime_info, anime_search, character_info};
 
 pub struct MediaTitle {
     pub romaji: Option<String>,
@@ -273,9 +273,33 @@ impl From<character_info::CharacterInfoCharacterName> for Name {
     }
 }
 
+impl From<anime_characters::AnimeCharactersMediaCharactersEdgesNodeName> for Name {
+    fn from(value: anime_characters::AnimeCharactersMediaCharactersEdgesNodeName) -> Self {
+        Self {
+            last: value.last,
+            first: value.first,
+            native: value.native,
+        }
+    }
+}
+
 impl From<character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActorName> for Name {
     fn from(
         value: character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActorName,
+    ) -> Self {
+        Self {
+            last: value.last,
+            first: value.first,
+            native: None,
+        }
+    }
+}
+
+impl From<anime_characters::AnimeCharactersMediaCharactersEdgesVoiceActorRolesVoiceActorName>
+    for Name
+{
+    fn from(
+        value: anime_characters::AnimeCharactersMediaCharactersEdgesVoiceActorRolesVoiceActorName,
     ) -> Self {
         Self {
             last: value.last,
@@ -315,6 +339,15 @@ impl From<character_info::CharacterInfoCharacterImage> for CharacterImage {
     }
 }
 
+impl From<anime_characters::AnimeCharactersMediaCharactersEdgesNodeImage> for CharacterImage {
+    fn from(value: anime_characters::AnimeCharactersMediaCharactersEdgesNodeImage) -> Self {
+        Self {
+            large: None,
+            medium: value.medium,
+        }
+    }
+}
+
 pub struct CharacterAppearsIn {
     pub id: i64,
     pub title: Option<String>,
@@ -339,6 +372,19 @@ impl From<character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceAc
 {
     fn from(
         value: character_info::CharacterInfoCharacterMediaEdgesVoiceActorRolesVoiceActor,
+    ) -> Self {
+        Self {
+            id: value.id,
+            name: value.name.map(|name| name.into()),
+        }
+    }
+}
+
+impl From<anime_characters::AnimeCharactersMediaCharactersEdgesVoiceActorRolesVoiceActor>
+    for CharacterVoiceActor
+{
+    fn from(
+        value: anime_characters::AnimeCharactersMediaCharactersEdgesVoiceActorRolesVoiceActor,
     ) -> Self {
         Self {
             id: value.id,
@@ -415,6 +461,42 @@ impl From<character_info::CharacterInfoCharacter> for Character {
             gender: character.gender,
             description: character.description,
             date_of_birth: character.date_of_birth.map(FuzzyDate::from),
+        }
+    }
+}
+
+impl
+    From<(
+        anime_characters::AnimeCharactersMediaCharactersEdgesNode,
+        Option<Vec<Option<anime_characters::AnimeCharactersMediaCharactersEdgesVoiceActorRoles>>>,
+    )> for Character
+{
+    fn from(
+        (character, voice_actor_roles): (
+            anime_characters::AnimeCharactersMediaCharactersEdgesNode,
+            Option<
+                Vec<Option<anime_characters::AnimeCharactersMediaCharactersEdgesVoiceActorRoles>>,
+            >,
+        ),
+    ) -> Self {
+        let voice_actors = voice_actor_roles
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|role| role.voice_actor)
+            .map(CharacterVoiceActor::from)
+            .collect();
+
+        Self {
+            voice_actors,
+            id: character.id,
+            age: None,
+            name: character.name.map(Name::from),
+            image: character.image.map(CharacterImage::from),
+            gender: None,
+            appears_in: vec![],
+            description: None,
+            date_of_birth: None,
         }
     }
 }
