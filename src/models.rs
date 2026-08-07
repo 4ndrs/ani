@@ -5,12 +5,12 @@ use std::{
 
 use super::anilist::{anime_info, anime_search, character_info};
 
-pub struct AnimeTitle {
+pub struct MediaTitle {
     pub romaji: Option<String>,
     pub native: Option<String>,
 }
 
-impl From<anime_info::AnimeInfoMediaTitle> for AnimeTitle {
+impl From<anime_info::AnimeInfoMediaTitle> for MediaTitle {
     fn from(value: anime_info::AnimeInfoMediaTitle) -> Self {
         Self {
             romaji: value.romaji,
@@ -19,7 +19,7 @@ impl From<anime_info::AnimeInfoMediaTitle> for AnimeTitle {
     }
 }
 
-impl From<anime_search::AnimeSearchPageResultsTitle> for AnimeTitle {
+impl From<anime_search::AnimeSearchPageResultsTitle> for MediaTitle {
     fn from(value: anime_search::AnimeSearchPageResultsTitle) -> Self {
         Self {
             romaji: value.romaji,
@@ -53,7 +53,7 @@ impl From<anime_search::AnimeSearchPageResultsCoverImage> for MediaCoverImage {
 
 pub struct Anime {
     pub id: i64,
-    pub title: Option<AnimeTitle>,
+    pub title: Option<MediaTitle>,
     pub genres: Option<Vec<String>>,
     pub format: Option<MediaFormat>,
     pub status: Option<MediaStatus>,
@@ -70,7 +70,7 @@ impl From<anime_info::AnimeInfoMedia> for Anime {
     fn from(anime: anime_info::AnimeInfoMedia) -> Self {
         Self {
             id: anime.id,
-            title: anime.title.map(AnimeTitle::from),
+            title: anime.title.map(MediaTitle::from),
             status: anime.status.map(MediaStatus::from),
             season: anime.season.map(MediaSeason::from),
             format: anime.format.map(MediaFormat::from),
