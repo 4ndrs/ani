@@ -1,0 +1,12 @@
+query CharacterCompletionSearch($query: String!) {
+  Page(perPage: 10) {
+    results: characters(search: $query) {
+      id
+      name {
+        last
+        first
+        native
+      }
+    }
+  }
+}

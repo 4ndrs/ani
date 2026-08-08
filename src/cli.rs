@@ -6,8 +6,8 @@ use super::display::{Style, print_anime_info, print_character_info};
 use super::models::{Anime, Character};
 
 use super::anilist::{
-    fetch_anime_characters, fetch_anime_completion_search, fetch_anime_info, fetch_anime_search,
-    fetch_character_info, fetch_image,
+    CompletionType, fetch_anime_characters, fetch_anime_info, fetch_anime_search,
+    fetch_character_info, fetch_completion_search, fetch_image,
 };
 
 #[derive(Parser, Debug)]
@@ -54,7 +54,7 @@ enum Commands {
     // https://github.com/clap-rs/clap/discussions/5214#discussioncomment-7577615
     #[command(hide = true)]
     /// Internal command for completions
-    CompletionSearch { query: String },
+    CompletionSearch { args: String },
     /// Generate zsh completions and print them to the screen
     GenerateZshCompletions,
     /// List characters from an anime
@@ -67,6 +67,23 @@ enum Commands {
         /// How many items to show per page
         #[arg(long, short = 'x', default_value = "8")]
         per_page: i64,
+    },
+}
+
+// the following is just used for the parsing of the data sent
+// by the completion function. We are using clap to parse it
+#[derive(Parser, Debug)]
+struct CompletionCli {
+    #[command(subcommand)]
+    commands: CompletionCommands,
+}
+
+#[derive(Subcommand, Debug)]
+enum CompletionCommands {
+    Info {
+        query: String,
+        #[arg(long, short, ignore_case = true, default_value = "anime")]
+        r#type: InfoType,
     },
 }
 
@@ -102,16 +119,6 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
 
                     print_character_info(&character, cover_image.as_ref(), Style::Large)?;
                 }
-            }
-        }
-        Commands::CompletionSearch { query } => {
-            dbg!(&query);
-
-            let client = reqwest::Client::new();
-            let completions = fetch_anime_completion_search(&client, query).await?;
-
-            for completion in completions {
-                println!("{completion}")
             }
         }
         Commands::GenerateZshCompletions => {
@@ -177,6 +184,39 @@ pub async fn parse_args() -> Result<(), Box<dyn std::error::Error>> {
 
             if results.has_next_page {
                 println!("next page is available")
+            }
+        }
+        Commands::CompletionSearch { args } => {
+            dbg!(&args);
+
+            let args = std::iter::once("").chain(args.split_whitespace());
+            let args = CompletionCli::parse_from(args);
+
+            match args.commands {
+                CompletionCommands::Info { query, r#type } => {
+                    dbg!(&query, &r#type);
+
+                    let client = reqwest::Client::new();
+
+                    let completions;
+
+                    match r#type {
+                        InfoType::Anime => {
+                            completions =
+                                fetch_completion_search(&client, query, CompletionType::Anime)
+                                    .await?;
+                        }
+                        InfoType::Character => {
+                            completions =
+                                fetch_completion_search(&client, query, CompletionType::Character)
+                                    .await?;
+                        }
+                    }
+
+                    for completion in completions {
+                        println!("{completion}")
+                    }
+                }
             }
         }
     }

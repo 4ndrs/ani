@@ -31,6 +31,14 @@ struct AnimeCompletionSearch;
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "graphql/schema.json",
+    query_path = "graphql/queries/character_completion_search.graphql",
+    response_derives = "Debug"
+)]
+struct CharacterCompletionSearch;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "graphql/schema.json",
     query_path = "graphql/queries/anime_search.graphql",
     response_derives = "Debug"
 )]
@@ -122,66 +130,130 @@ pub async fn fetch_anime_search(
     })
 }
 
-pub struct AnimeCompletion {
+pub struct Completion {
     pub id: i64,
     pub title: String,
 }
 
-impl Display for AnimeCompletion {
+impl Display for Completion {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "{}\t{}", self.id, self.title)
     }
 }
 
-pub async fn fetch_anime_completion_search(
+pub enum CompletionType {
+    Anime,
+    Character,
+}
+
+pub async fn fetch_completion_search(
     client: &reqwest::Client,
     query: String,
-) -> Result<Vec<AnimeCompletion>, Box<dyn std::error::Error>> {
-    let variables = anime_completion_search::Variables { query };
-    let request_body = AnimeCompletionSearch::build_query(variables);
+    r#type: CompletionType,
+) -> Result<Vec<Completion>, Box<dyn std::error::Error>> {
+    let completion_results;
 
-    let response: Response<anime_completion_search::ResponseData> = client
-        .post(ANILIST_GRAPHQL_URL)
-        .json(&request_body)
-        .send()
-        .await?
-        .json()
-        .await?;
+    match r#type {
+        CompletionType::Anime => {
+            let variables = anime_completion_search::Variables { query };
+            let request_body = AnimeCompletionSearch::build_query(variables);
 
-    if let Some(errors) = response.errors {
-        let messages = errors
-            .into_iter()
-            .map(|error| error.message)
-            .collect::<Vec<_>>()
-            .join("; ");
+            let response: Response<anime_completion_search::ResponseData> = client
+                .post(ANILIST_GRAPHQL_URL)
+                .json(&request_body)
+                .send()
+                .await?
+                .json()
+                .await?;
 
-        return Err(Error::other(format!("GraphQL error: {messages}")).into());
+            if let Some(errors) = response.errors {
+                let messages = errors
+                    .into_iter()
+                    .map(|error| error.message)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+
+                return Err(Error::other(format!("GraphQL error: {messages}")).into());
+            }
+
+            let results = response
+                .data
+                .ok_or_else(|| Error::other("response contained no data"))?
+                .page
+                .ok_or_else(|| Error::other("response contained no page"))?
+                .results
+                .ok_or_else(|| Error::other("response contained no results"))?;
+
+            let results: Vec<_> = results.into_iter().flatten().collect();
+
+            completion_results = results
+                .into_iter()
+                .map(|anime| {
+                    let id = anime.id;
+                    let title = anime
+                        .title
+                        .and_then(|title| title.romaji)
+                        .unwrap_or_else(|| "No Title".into());
+
+                    Completion { id, title }
+                })
+                .collect();
+        }
+        CompletionType::Character => {
+            let variables = character_completion_search::Variables { query };
+            let request_body = CharacterCompletionSearch::build_query(variables);
+
+            let response: Response<character_completion_search::ResponseData> = client
+                .post(ANILIST_GRAPHQL_URL)
+                .json(&request_body)
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            if let Some(errors) = response.errors {
+                let messages = errors
+                    .into_iter()
+                    .map(|error| error.message)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+
+                return Err(Error::other(format!("GraphQL error: {messages}")).into());
+            }
+
+            let results = response
+                .data
+                .ok_or_else(|| Error::other("response contained no data"))?
+                .page
+                .ok_or_else(|| Error::other("response contained no page"))?
+                .results
+                .ok_or_else(|| Error::other("response contained no results"))?;
+
+            let results: Vec<_> = results.into_iter().flatten().collect();
+
+            completion_results = results
+                .into_iter()
+                .map(|character| {
+                    let id = character.id;
+                    let last = character.name.as_ref().and_then(|name| name.last.clone());
+                    let first = character.name.as_ref().and_then(|name| name.first.clone());
+                    let native = character.name.as_ref().and_then(|name| name.native.clone());
+
+                    let title = match (last, first, native) {
+                        (Some(last), Some(first), _) => format!("{last} {first}"),
+                        (Some(last), None, _) => last,
+                        (None, Some(first), _) => first,
+                        (None, None, Some(native)) => native,
+                        (None, None, None) => "No Name".to_owned(),
+                    };
+
+                    Completion { id, title }
+                })
+                .collect();
+        }
     }
 
-    let results = response
-        .data
-        .ok_or_else(|| Error::other("response contained no data"))?
-        .page
-        .ok_or_else(|| Error::other("response contained no page"))?
-        .results
-        .ok_or_else(|| Error::other("response contained no results"))?;
-
-    let results: Vec<_> = results.into_iter().flatten().collect();
-
-    let results = results
-        .into_iter()
-        .map(|anime| {
-            let id = anime.id;
-            let title = anime
-                .title
-                .and_then(|title| title.romaji)
-                .unwrap_or_else(|| "No Title".into());
-
-            AnimeCompletion { id, title }
-        })
-        .collect();
-
-    Ok(results)
+    Ok(completion_results)
 }
 
 pub async fn fetch_anime_info(

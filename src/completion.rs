@@ -2,8 +2,8 @@ use clap::Command;
 use clap_complete::{generate, shells};
 use regex::RegexBuilder;
 
-const ANIME_INFO_ZSH_COMPLETION: &str = r#"
-_ani_info() {
+const CUSTOM_ZSH_COMPLETION: &str = r#"
+_ani_query() {
     # a previous completion call already produced and displayed a list
     # reuse it and begin selecting the items
     if [[ "${compstate[old_list]}" == "shown" ]]; then
@@ -16,6 +16,7 @@ _ani_info() {
 
     local line id title output
 
+    local args="${words}"
     local query="${words[CURRENT]}"
 
     if (( ${#query} < 2 )); then
@@ -25,10 +26,10 @@ _ani_info() {
 
     zle -M "Searching AniList for '$query'..."
 
-    output="$(ani completion-search "$query" 2>/dev/null)"
+    output="$(ani completion-search "$args" 2>/dev/null)"
 
     if [[ -z "$output" ]]; then
-        _message "No anime found for '$query'"
+        _message "No results found for '$query'"
         return
     fi
 
@@ -68,12 +69,12 @@ pub fn generate_completions(cmd: &mut Command) -> Result<String, Box<dyn std::er
             .build()?;
 
     let zsh_completion = String::from_utf8(buffer)?;
-    let zsh_completion = info_function_regex.replace(&zsh_completion, "${start}_ani_info");
-    let zsh_completion = characters_function_regex.replace(&zsh_completion, "${start}_ani_info");
+    let zsh_completion = info_function_regex.replace(&zsh_completion, "${start}_ani_query");
+    let zsh_completion = characters_function_regex.replace(&zsh_completion, "${start}_ani_query");
 
     let zsh_completion = zsh_completion.replacen(
         "#compdef ani",
-        &format!("#compdef ani\n{ANIME_INFO_ZSH_COMPLETION}"),
+        &format!("#compdef ani\n{CUSTOM_ZSH_COMPLETION}"),
         1,
     );
 
